@@ -1,0 +1,23 @@
+# dsh-url-router bundle patch: inserts the plugin row into the profile roster.
+#
+# The browser half (exports "./client") owns the URL fragment: it mirrors the view
+# on screen into the address bar (`#/session/<id>`, `#/panel/<panelId>`) and opens
+# the surface a link names. There is no host behavior: no route, no tool, no service.
+#
+# Because this plugin is the ONLY writer of the fragment, do not run it alongside
+# another plugin that writes the fragment (for example dsh-session-url): the two
+# would overwrite each other's URL on every notification.
+#
+# The entry name is the BARE package name on purpose: the client-module scanner
+# treats it as a package specifier and resolves `<name>/package.json`, so a
+# subpath entry would be cached as "not a client package" and the browser half
+# would silently never load.
+#
+# A bundle-row change is a profile composition change: enabling, disabling or
+# updating this plugin takes effect on the next page load for the browser half,
+# and after a host restart for the row itself (unless the profile sets
+# `patchReload: live`, in which case the row hot-loads and a page refresh is
+# enough).
+- insert:
+    - id: dsh-url-router
+      name: 'dsh-url-router'
