@@ -509,11 +509,22 @@ function fakeDom(initialKeys) {
       }
       const part = /^\[data-dsh-part="([^"]+)"\]$/.exec(selector)
       if (part !== null) return this.getAttribute('data-dsh-part') === part[1]
-      // Generic attribute selector, then a bare tag selector: enough for the structural
-      // hooks the panel rows are found by. The fake DOM spells tag names upper case, so
-      // the tag comparison is case-insensitive.
-      const attribute = /^\[([a-z-]+)="([^"]+)"\]$/.exec(selector)
-      if (attribute !== null) return this.getAttribute(attribute[1]) === attribute[2]
+      // `tag[attr="value"]` and `[attr="value"]`, then a bare tag selector: enough for
+      // the structural hooks rows are found by. The fake DOM spells tag names upper
+      // case, so tag comparisons are case-insensitive.
+      // `[attr]` / `tag[attr]` (presence only) is used as much as the valued form.
+      const presence = /^([a-zA-Z][a-zA-Z0-9-]*)?\[([a-z-]+)\]$/.exec(selector)
+      if (presence !== null) {
+        const [, tag, name] = presence
+        if (tag !== undefined && String(this.tagName ?? '').toLowerCase() !== tag.toLowerCase()) return false
+        return this.getAttribute(name) !== null
+      }
+      const attribute = /^([a-zA-Z][a-zA-Z0-9-]*)?\[([a-z-]+)="([^"]+)"\]$/.exec(selector)
+      if (attribute !== null) {
+        const [, tag, name, value] = attribute
+        if (tag !== undefined && String(this.tagName ?? '').toLowerCase() !== tag.toLowerCase()) return false
+        return this.getAttribute(name) === value
+      }
       return String(this.tagName ?? '').toLowerCase() === String(selector).toLowerCase()
     }
     descendants() {
@@ -537,6 +548,7 @@ function fakeDom(initialKeys) {
     documentElement: body,
     createElement: tag => new Node(tag),
     createElementNS: (_namespace, tag) => new Node(tag),
+    querySelector: selector => body.descendants().find(node => node.matches(selector)) ?? null,
     querySelectorAll: selector => body.descendants().filter(node => node.matches(selector)),
   }
   const observers = []
@@ -621,12 +633,12 @@ test('a plain click opens the conversation here, while a modified click stays na
 test('a row that appears later, as the virtualized list grows, is linked too', () => {
   // Given a linked list
   const { dom } = openWithDom(['session:session-abc'])
-  assert.equal(dom.observers.length, 1)
+  assert.ok(dom.observers.length >= 1, 'at least the row-link observer is installed')
   // When the list later renders another conversation row
   const late = dom.document.createElement('div')
   late.setAttribute('data-row-key', 'session:session-late')
   dom.body.appendChild(late)
-  dom.observers[0].trigger()
+  for (const observer of dom.observers) observer.trigger()
   // Then that row is linked as well
   assert.equal(late.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-late')
 })
@@ -717,4 +729,157 @@ test('disposal removes panel-row anchors too', () => {
   // Then the anchor and the row tweak are gone
   assert.equal(row.querySelector('[data-dsh-part="url-router-link"]'), null)
   assert.equal(row.getAttribute('data-dsh-url-router-host'), null)
+})
+
+/**
+ * Add one plugin-list row to a fake DOM, modelling what the official panel does when
+ * its own open control is clicked: the detail page appears with its data attribute.
+ */
+function addPluginRow(dom, name) {
+  const row = dom.document.createElement('li')
+  row.setAttribute('data-plugin-package', name)
+  const button = dom.document.createElement('button')
+  button.setAttribute('aria-label', `View ${name}`)
+  button.click = () => {
+    const page = dom.document.querySelector('[data-plugin-panel]') ?? dom.body
+    const detail = dom.document.createElement('div')
+    detail.setAttribute('data-plugin-detail', name)
+    page.appendChild(detail)
+  }
+  row.appendChild(button)
+  const panel = dom.document.createElement('section')
+  panel.setAttribute('data-plugin-panel', 'true')
+  panel.appendChild(row)
+  dom.body.appendChild(panel)
+  return { row, button, panel }
+}
+
+function triggerObservers(dom) {
+  for (const observer of dom.observers) observer.trigger()
+}
+
+test('an open panel detail page is named in the address bar', () => {
+  // Given the plugins panel is on screen with one plugin's detail page open
+  const dom = fakeDom([])
+  addPluginRow(dom, 'dsh-as-aistudio')
+  const detail = dom.document.createElement('div')
+  detail.setAttribute('data-plugin-detail', 'dsh-as-aistudio')
+  dom.body.appendChild(detail)
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the address bar names the panel AND the open page
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-as-aistudio')
+})
+
+test('a detail link opens that page through the panel\'s own control', () => {
+  // Given a link straight to one plugin's page
+  const dom = fakeDom([])
+  const { row, button } = addPluginRow(dom, 'dsh-as-aistudio')
+  const env = environment({ hash: '#/panel/plugins/dsh-as-aistudio', panels: ['plugins'], rowLabels: [] })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  let clicks = 0
+  const original = button.click
+  button.click = () => { clicks += 1; original() }
+  // When the plugin applies
+  open(env)
+  // Then the panel was selected and its own control was used to open the page
+  assert.deepEqual(env.selected, ['plugins'])
+  assert.equal(clicks, 1)
+  // And once the DOM reports the page, the address bar keeps its canonical form
+  triggerObservers(dom)
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-as-aistudio')
+  assert.deepEqual(env.warnings, [])
+  assert.ok(row.querySelector('[data-dsh-part="url-router-link"]') !== null, 'the list row is a link as well')
+})
+
+test('a plugin list row is a real link to its detail page', () => {
+  // Given the plugins panel listing one plugin
+  const dom = fakeDom([])
+  const { row, button } = addPluginRow(dom, 'dsh-chat-export')
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  let clicks = 0
+  const original = button.click
+  button.click = () => { clicks += 1; original() }
+  open(env)
+  // Then the row carries an anchor naming that plugin's page
+  const anchor = row.querySelector('[data-dsh-part="url-router-link"]')
+  assert.ok(anchor !== null)
+  assert.equal(anchor.getAttribute('href'), '#/panel/plugins/dsh-chat-export')
+  assert.equal(anchor.getAttribute('target'), '_blank')
+  // When the anchor is clicked plainly
+  let prevented = 0
+  anchor.fire('click', { button: 0, defaultPrevented: false, preventDefault: () => { prevented += 1 }, stopPropagation: () => {} })
+  // Then the panel keeps it in place: the panel is selected and its control opened the page
+  assert.equal(prevented, 1)
+  assert.deepEqual(env.selected, ['plugins'])
+  assert.equal(clicks, 1)
+})
+
+test('a detail page that never opens is dropped at expiry with one diagnostic', () => {
+  // Given a link to a plugin page this panel cannot open
+  const dom = fakeDom([])
+  addPluginRow(dom, 'dsh-as-aistudio')
+  const env = environment({ hash: '#/panel/plugins/nope', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the wait is silent, and expiry reports it once and returns to the panel itself
+  assert.deepEqual(env.warnings, [])
+  env.api.advance(8000)
+  assert.equal(env.location.hash, '#/panel/plugins')
+  assert.equal(env.warnings.filter(w => w.includes('nope')).length, 1)
+})
+
+test('a hashchange to a detail link drives the panel at runtime', () => {
+  // Given the plugins panel is already on screen (no inner page open)
+  const dom = fakeDom([])
+  const { button } = addPluginRow(dom, 'dsh-as-aistudio')
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  let clicks = 0
+  const original = button.click
+  button.click = () => { clicks += 1; original() }
+  open(env)
+  assert.equal(clicks, 0)
+  // When the address bar is given that plugin's page (a hashchange, as a pasted link does)
+  env.api.navigate('#/panel/plugins/dsh-as-aistudio')
+  // Then the panel's own control is used to open it, and the URL stays canonical
+  assert.equal(clicks, 1)
+  triggerObservers(dom)
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-as-aistudio')
+  assert.deepEqual(env.warnings, [])
+})
+
+test('a detail link is retried once the panel list has rendered', () => {
+  // Given a link to a plugin page, arriving before the panel's list exists
+  const dom = fakeDom([])
+  const env = environment({ hash: '#/panel/plugins/dsh-late', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the first request found no control, and the router waits silently
+  assert.deepEqual(env.warnings, [])
+  // When the list renders that plugin
+  const { button } = addPluginRow(dom, 'dsh-late')
+  let clicks = 0
+  const original = button.click
+  button.click = () => { clicks += 1; original() }
+  triggerObservers(dom)
+  // Then the page is opened through the panel's own control, and the URL stays canonical
+  assert.equal(clicks, 1)
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-late')
+  assert.deepEqual(env.warnings, [])
 })
