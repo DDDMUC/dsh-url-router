@@ -42,6 +42,11 @@ behavior applies with no custom menu:
   navigation), so the address bar keeps using `replaceState` and no history entry is added
 - the row's own controls (⋯, buttons) are lifted above the overlay and keep working
 
+The same applies to the **main-panel rows** (Plugins, Task Board, …): each becomes
+`#/panel/<id>`. A panel row carries no identity in the DOM, so its id comes from the panel
+registry (`ctx.slots.entries('sidebar.panellist')`), matched by accessible name and aligned
+by registration order; a row that cannot be matched is left untouched.
+
 It supersedes the earlier `dsh-session-url` plugin: install one, not both (both write the
 fragment). The link shape `#/session/<id>` is identical, so existing links keep working.
 

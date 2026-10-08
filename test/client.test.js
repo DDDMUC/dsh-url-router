@@ -190,6 +190,12 @@ function environment(options = {}) {
     },
   }
   const services = options.services ?? { sessions, workspaces, uiWorkspace }
+  const slots = {
+    entries(key) {
+      assert.equal(key, 'sidebar.panellist')
+      return (options.panels ?? []).map(panel => ({ options: panel }))
+    },
+  }
   const ctx = {
     effect(fn) {
       disposers.push(fn())
@@ -198,6 +204,7 @@ function environment(options = {}) {
       if (name === 'layout') return options.layout === null ? undefined : layout
       return undefined
     },
+    slots,
     ...services,
   }
   return { moduleExports, ctx, api, window, location, writes, warnings, opened, selected, listeners, disposers, layout }
@@ -209,13 +216,13 @@ const open = env => {
   return env
 }
 
-test('the browser module advertises the three session faces it needs', () => {
+test('the browser module advertises the services it needs', () => {
   // Given the shipped bundle
   const env = environment()
   // When its exports are inspected
   // Then apply and the injected service names are the documented ones
   assert.equal(typeof env.moduleExports.apply, 'function')
-  assert.equal([...env.moduleExports.inject].join(','), 'sessions,workspaces,uiWorkspace')
+  assert.equal([...env.moduleExports.inject].join(','), 'sessions,workspaces,uiWorkspace,slots')
 })
 
 test('a panel link selects that panel and keeps the address bar canonical', () => {
@@ -502,7 +509,12 @@ function fakeDom(initialKeys) {
       }
       const part = /^\[data-dsh-part="([^"]+)"\]$/.exec(selector)
       if (part !== null) return this.getAttribute('data-dsh-part') === part[1]
-      return false
+      // Generic attribute selector, then a bare tag selector: enough for the structural
+      // hooks the panel rows are found by. The fake DOM spells tag names upper case, so
+      // the tag comparison is case-insensitive.
+      const attribute = /^\[([a-z-]+)="([^"]+)"\]$/.exec(selector)
+      if (attribute !== null) return this.getAttribute(attribute[1]) === attribute[2]
+      return String(this.tagName ?? '').toLowerCase() === String(selector).toLowerCase()
     }
     descendants() {
       const out = []
@@ -544,8 +556,11 @@ function openWithDom(keys, options = {}) {
   env.window.document = dom.document
   env.window.getComputedStyle = () => ({ position: 'static' })
   env.window.MutationObserver = dom.FakeObserver
+  // Panel rows belong to the DOM the plugin will actually scan, so they are added
+  // to this one rather than to a document built by the caller.
+  const panels = (options.rowLabels ?? []).map(label => addPanelRow(dom, label))
   open(env)
-  return { env, dom }
+  return { env, dom, panels }
 }
 
 test('a conversation row becomes a real link, and only conversation rows do', () => {
@@ -564,7 +579,7 @@ test('a conversation row becomes a real link, and only conversation rows do', ()
   assert.equal(second.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-def')
   // And the workspace row is untouched, while the row gained a positioning context
   assert.equal(other.querySelector('[data-dsh-part="url-router-link"]'), null)
-  assert.equal(first.getAttribute('data-dsh-url-router-host'), '1')
+  assert.equal(first.getAttribute('data-dsh-url-router-host'), 'own')
   assert.equal(first.style.position, 'relative')
   // The anchor covers the whole row and is the row's first child, so the row's own
   // controls (lifted by the stylesheet) stay in front of it
@@ -637,4 +652,69 @@ test('a shell without a sidebar DOM keeps the fragment sync working', () => {
   // Then it neither throws nor stops syncing the address bar
   assert.doesNotThrow(() => open(env))
   assert.deepEqual(env.opened, ['session-abc'])
+})
+
+/** Add one main-panel row (the sidebar's structural shape) to a fake DOM. */
+function addPanelRow(dom, label) {
+  const row = dom.document.createElement('button')
+  row.setAttribute('aria-label', label)
+  const slot = dom.document.createElement('div')
+  slot.setAttribute('data-slot', 'sidebar.panellist')
+  row.appendChild(slot)
+  dom.body.appendChild(row)
+  return row
+}
+
+test('a main-panel row becomes a real link to its panel route', () => {
+  // Given a sidebar whose panel rows are rendered from the registry
+  const { env, panels } = openWithDom([], {
+    rowLabels: ['Plugins', '任务看板'],
+    panels: [
+      { id: 'plugins', order: 0, label: 'Plugins' },
+      // A label the shell resolves per locale is a function here: matching must fall
+      // back to the registry order rather than to text.
+      { id: 'task-board', order: 1, label: () => '任务看板' },
+    ],
+  })
+  const [plugins, board] = panels
+  // When the plugin applies
+  const first = plugins.querySelector('[data-dsh-part="url-router-link"]')
+  const second = board.querySelector('[data-dsh-part="url-router-link"]')
+  // Then both rows carry a real link naming their panel route
+  assert.ok(first !== null, 'the registry-matched row must carry an anchor')
+  assert.equal(first.getAttribute('href'), '#/panel/plugins')
+  assert.equal(first.getAttribute('target'), '_blank')
+  assert.ok(second !== null, 'the order-aligned row must carry an anchor too')
+  assert.equal(second.getAttribute('href'), '#/panel/task-board')
+  // And a plain click selects that panel here, cancelling the anchor's own navigation
+  let prevented = 0
+  first.fire('click', { button: 0, defaultPrevented: false, preventDefault: () => { prevented += 1 }, stopPropagation: () => {} })
+  assert.deepEqual(env.selected, ['plugins'])
+  assert.equal(prevented, 1)
+})
+
+test('a panel row with no registry entry is left untouched', () => {
+  // Given one registered panel and two rendered rows: alignment cannot be trusted
+  const { panels: [known, stranger] } = openWithDom([], {
+    rowLabels: ['Plugins', 'Mystery'],
+    panels: [{ id: 'plugins', order: 0, label: 'Plugins' }],
+  })
+  // Then the matched row is linked by name and the unmatched one is not touched
+  assert.ok(known.querySelector('[data-dsh-part="url-router-link"]') !== null)
+  assert.equal(stranger.querySelector('[data-dsh-part="url-router-link"]'), null)
+  assert.equal(stranger.getAttribute('data-dsh-url-router-host'), null)
+})
+
+test('disposal removes panel-row anchors too', () => {
+  // Given a linked panel row
+  const { env, panels: [row] } = openWithDom([], {
+    rowLabels: ['Plugins'],
+    panels: [{ id: 'plugins', order: 0, label: 'Plugins' }],
+  })
+  assert.ok(row.querySelector('[data-dsh-part="url-router-link"]') !== null)
+  // When the plugin is disposed
+  for (const dispose of env.disposers) dispose()
+  // Then the anchor and the row tweak are gone
+  assert.equal(row.querySelector('[data-dsh-part="url-router-link"]'), null)
+  assert.equal(row.getAttribute('data-dsh-url-router-host'), null)
 })
