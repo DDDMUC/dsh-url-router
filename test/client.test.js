@@ -457,3 +457,184 @@ test('a navigation face that throws is contained and does not loop', () => {
   env.api.list('session-other')
   assert.deepEqual(env.opened, ['session-abc'])
 })
+
+function fakeDom(initialKeys) {
+  class Node {
+    constructor(tag) {
+      this.tagName = String(tag).toUpperCase()
+      this.attributes = new Map()
+      this.children = []
+      this.parentElement = null
+      this.style = {}
+      this.listeners = new Map()
+      this.className = ''
+      this.id = ''
+      this.textContent = ''
+    }
+    setAttribute(name, value) { this.attributes.set(name, String(value)) }
+    getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null }
+    removeAttribute(name) { this.attributes.delete(name) }
+    appendChild(child) { child.parentElement = this; this.children.push(child); return child }
+    get firstChild() { return this.children[0] ?? null }
+    insertBefore(node, reference) {
+      const index = reference === null ? this.children.length : this.children.indexOf(reference)
+      this.children.splice(index < 0 ? this.children.length : index, 0, node)
+      node.parentElement = this
+      return node
+    }
+    remove() {
+      if (this.parentElement !== null) {
+        this.parentElement.children = this.parentElement.children.filter(c => c !== this)
+        this.parentElement = null
+      }
+    }
+    addEventListener(type, handler) {
+      const set = this.listeners.get(type) ?? new Set()
+      set.add(handler)
+      this.listeners.set(type, set)
+    }
+    fire(type, event) { for (const handler of [...(this.listeners.get(type) ?? [])]) handler(event) }
+    matches(selector) {
+      const rowKey = /^\[data-row-key\^="([^"]+)"\]$/.exec(selector)
+      if (rowKey !== null) {
+        const value = this.getAttribute('data-row-key')
+        return value !== null && value.startsWith(rowKey[1])
+      }
+      const part = /^\[data-dsh-part="([^"]+)"\]$/.exec(selector)
+      if (part !== null) return this.getAttribute('data-dsh-part') === part[1]
+      return false
+    }
+    descendants() {
+      const out = []
+      for (const child of this.children) out.push(child, ...child.descendants())
+      return out
+    }
+    querySelector(selector) { return this.descendants().find(node => node.matches(selector)) ?? null }
+  }
+  const body = new Node('body')
+  const head = new Node('head')
+  const rows = initialKeys.map(key => {
+    const row = new Node('div')
+    row.setAttribute('data-row-key', key)
+    body.appendChild(row)
+    return row
+  })
+  const document = {
+    body,
+    head,
+    documentElement: body,
+    createElement: tag => new Node(tag),
+    createElementNS: (_namespace, tag) => new Node(tag),
+    querySelectorAll: selector => body.descendants().filter(node => node.matches(selector)),
+  }
+  const observers = []
+  class FakeObserver {
+    constructor(callback) { this.callback = callback; this.disconnected = false; observers.push(this) }
+    observe() {}
+    disconnect() { this.disconnected = true }
+    trigger() { if (!this.disconnected) this.callback([]) }
+  }
+  return { document, body, head, rows, observers, FakeObserver }
+}
+
+/** Apply the plugin against a page that has a sidebar list. */
+function openWithDom(keys, options = {}) {
+  const dom = fakeDom(keys)
+  const env = environment(options)
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  return { env, dom }
+}
+
+test('a conversation row becomes a real link, and only conversation rows do', () => {
+  // Given a sidebar listing two conversations and one workspace row
+  const { dom } = openWithDom(['session:session-abc', 'session:session-def', 'workspace:Default Project'])
+  const [first, second, other] = dom.rows
+  // When the plugin applies
+  const anchor = first.querySelector('[data-dsh-part="url-router-link"]')
+  // Then each conversation row carries a real anchor that opens a new tab
+  assert.ok(anchor !== null, 'a conversation row must carry the plugin anchor')
+  assert.equal(anchor.getAttribute('href'), '#/session/session-abc')
+  assert.equal(anchor.getAttribute('target'), '_blank')
+  assert.equal(anchor.getAttribute('rel'), 'noreferrer')
+  assert.equal(anchor.getAttribute('data-dsh-plugin'), 'dsh-url-router')
+  assert.match(anchor.getAttribute('title') ?? '', /复制链接|copy the link/)
+  assert.equal(second.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-def')
+  // And the workspace row is untouched, while the row gained a positioning context
+  assert.equal(other.querySelector('[data-dsh-part="url-router-link"]'), null)
+  assert.equal(first.getAttribute('data-dsh-url-router-host'), '1')
+  assert.equal(first.style.position, 'relative')
+  // The anchor covers the whole row and is the row's first child, so the row's own
+  // controls (lifted by the stylesheet) stay in front of it
+  assert.equal(first.children[0], anchor, 'the anchor must be the row first child')
+  assert.equal(anchor.className, 'dsh-url-router-link')
+  // And exactly one stylesheet was injected, lifting the official controls above the overlay
+  const styles = dom.head.children.filter(node => node.id === 'dsh-url-router-style')
+  assert.equal(styles.length, 1)
+  assert.match(styles[0].textContent, /:is\(button/)
+})
+
+test('a plain click opens the conversation here, while a modified click stays native', () => {
+  // Given a linked row
+  const { env, dom } = openWithDom(['session:session-abc'])
+  const anchor = dom.rows[0].querySelector('[data-dsh-part="url-router-link"]')
+  // When the anchor is clicked plainly
+  let prevented = 0
+  let stopped = 0
+  anchor.fire('click', { button: 0, defaultPrevented: false, preventDefault: () => { prevented += 1 }, stopPropagation: () => { stopped += 1 } })
+  // Then the plugin opens that conversation here through the official navigation ...
+  assert.deepEqual(env.opened, ['session-abc'])
+  // ... and cancels both the anchor's own navigation and the row's duplicate handling
+  assert.equal(prevented, 1)
+  assert.equal(stopped, 1)
+  // And the address bar names it, still without gaining a history entry
+  assert.equal(env.location.hash, '#/session/session-abc')
+  assert.deepEqual(env.writes, ['/#/session/session-abc'])
+  // And a modified click is left to the browser, which opens its native new tab
+  anchor.fire('click', { button: 0, metaKey: true, defaultPrevented: false, preventDefault: () => { prevented += 1 }, stopPropagation: () => { stopped += 1 } })
+  assert.equal(prevented, 1)
+  assert.equal(stopped, 1)
+  assert.deepEqual(env.opened, ['session-abc'])
+  // And an event another handler already took is left alone
+  anchor.fire('click', { button: 0, defaultPrevented: true, preventDefault: () => { prevented += 1 }, stopPropagation: () => { stopped += 1 } })
+  assert.equal(prevented, 1)
+  assert.equal(stopped, 1)
+})
+
+test('a row that appears later, as the virtualized list grows, is linked too', () => {
+  // Given a linked list
+  const { dom } = openWithDom(['session:session-abc'])
+  assert.equal(dom.observers.length, 1)
+  // When the list later renders another conversation row
+  const late = dom.document.createElement('div')
+  late.setAttribute('data-row-key', 'session:session-late')
+  dom.body.appendChild(late)
+  dom.observers[0].trigger()
+  // Then that row is linked as well
+  assert.equal(late.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-late')
+})
+
+test('disposal removes the anchors, the stylesheet and the row tweak', () => {
+  // Given a linked list
+  const { env, dom } = openWithDom(['session:session-abc'])
+  // When the plugin is disposed
+  for (const dispose of env.disposers) dispose()
+  // Then nothing of the plugin is left in the page
+  assert.equal(dom.rows[0].querySelector('[data-dsh-part="url-router-link"]'), null)
+  assert.equal(dom.rows[0].getAttribute('data-dsh-url-router-host'), null)
+  assert.equal(dom.rows[0].style.position, '')
+  assert.equal(dom.head.children.some(node => node.id === 'dsh-url-router-style'), false)
+  assert.equal(dom.observers[0].disconnected, true)
+})
+
+test('a shell without a sidebar DOM keeps the fragment sync working', () => {
+  // Given the usual environment, which has no document at all
+  const env = environment({ hash: '#/session/session-abc' })
+  env.api.list('session-abc')
+  // When the plugin applies
+  // Then it neither throws nor stops syncing the address bar
+  assert.doesNotThrow(() => open(env))
+  assert.deepEqual(env.opened, ['session-abc'])
+})
