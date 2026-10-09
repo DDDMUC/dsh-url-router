@@ -60,6 +60,8 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 
 ### 已知限制
 
+- **轮次链接是"位置"不是"界面"**：点某一轮，地址栏记下 `#/session/<id>/turn/<n>` ✓；但**粘贴它只会打开那个对话，不会滚到那一轮** ✗ —— 官方把"跳到某轮"（`scrollToTurn` / `JUMP_PAGE_OPTIONS`）留在 chat 包**内部**，没有对外接缝 ✗，逐页翻也不可靠 ✗（实测「Load earlier」按钮在两个会话上都没加载出更早的轮次 ✗）。要真跳转，需要官方开一个服务或槽位 ✓。
+- **右栏 pane 已接入但未真机验证**：`#/panel/<面板>/pane/<页签 kind>` ✓（读 `sidebarRightTabs` 的 `activeTabId` ✓，驱动用它的 `openTab` ✓）。**注意**：本机组合里右栏没有任何页签注册 ✗，所以只跑过单测 ✓；页签 kind 由注册方决定 ✓（例如官方 `-files` / `-terminal` / `-browser` / `-documentpreview` 包注册的那些 ✓）。
 - **设置页分区暂未纳入**：设置包没有"打开某个分区"的接缝（它们是 keyed list slot），只能等它自己发布类似契约。
 - **右栏 pane 与会话内轮次/消息锚点暂未纳入**。
 - **技能中心 / SSH 的内部页**：需要它们各自发布"当前实体 id + 按 id 打开"的契约（任务看板就是这么做的）。
