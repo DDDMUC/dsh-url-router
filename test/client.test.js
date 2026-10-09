@@ -208,12 +208,14 @@ function environment(options = {}) {
     },
   }
   const services = options.services ?? { sessions, workspaces, uiWorkspace }
-  const slots = {
-    entries(key) {
-      assert.equal(key, 'sidebar.panellist')
-      return (options.panels ?? []).map(panel => ({ options: panel }))
-    },
-  }
+    const slots = {
+      entries(key) {
+        // The plugin reads two slot keys: the sidebar's panel rows, and the conversation's views.
+        if (key === 'conversation.view') return options.viewEntries ?? []
+        if (key !== 'sidebar.panellist') return []
+        return (options.panels ?? []).map(panel => ({ options: panel }))
+      },
+    }
   const ctx = {
     effect(fn) {
       disposers.push(fn())
@@ -1558,4 +1560,74 @@ test('without a workspace row the conversation route stays as it was', () => {
   const anchor = dom.document.querySelector('[data-dsh-part="url-router-link"]')
   assert.ok(anchor !== null)
   assert.equal(anchor.getAttribute('href'), '#/session/session-a')
+})
+
+/** The conversation header's view tabs, plus the registry the ids come from. */
+function addConversationViews(dom, ids, activeIndex = 0) {
+  const row = dom.document.createElement('div')
+  row.setAttribute('data-conversation-tabs', '')
+  row.setAttribute('role', 'tablist')
+  const tabs = ids.map((id, index) => {
+    const tab = dom.document.createElement('button')
+    tab.setAttribute('role', 'tab')
+    tab.setAttribute('aria-selected', index === activeIndex ? 'true' : 'false')
+    tab.textContent = id
+    tab.click = () => { for (const sibling of row.children) sibling.setAttribute('aria-selected', 'false'); tab.setAttribute('aria-selected', 'true') }
+    row.appendChild(tab)
+    return tab
+  })
+  dom.body.appendChild(row)
+  // The views are contributed through the conversation.view slot, with an id and an order.
+  const viewEntries = ids.map((id, index) => ({ options: { id, order: index * 10 } }))
+  return { row, tabs, viewEntries }
+}
+
+test('which conversation view is showing is named in the address bar', () => {
+  // Given a conversation showing its second view (the trajectory)
+  const dom = fakeDom([])
+  const { viewEntries } = addConversationViews(dom, ['chat', 'trajectory', 'tool-todo-history'], 1)
+  const env = environment({ panels: [], activePanelId: null, viewEntries })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // Then the address bar names that view, by its registry id
+  assert.equal(env.location.hash, '#/session/session-a/view/trajectory')
+})
+
+test('the default conversation view keeps the short route', () => {
+  // Given a conversation showing its first (default) view
+  const dom = fakeDom([])
+  const { viewEntries } = addConversationViews(dom, ['chat', 'trajectory'], 0)
+  const env = environment({ panels: [], activePanelId: null, viewEntries })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // Then the route stays short: the default view is not spelled out
+  assert.equal(env.location.hash, '#/session/session-a')
+})
+
+test('a conversation view link switches that conversation to that view', () => {
+  // Given a link naming a view
+  const dom = fakeDom([])
+  const { tabs, viewEntries } = addConversationViews(dom, ['chat', 'trajectory', 'tool-todo-history'], 0)
+  const env = environment({ hash: '#/session/session-a/view/tool-todo-history', panels: [], activePanelId: null, viewEntries })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  open(env)
+  // The real app follows openSession by showing it; the stub has to be told the same thing.
+  env.api.view('session-a')
+  for (let i = 0; i < 3; i++) triggerObservers(dom)
+  // Then the conversation is open and its third tab is the selected one
+  assert.deepEqual(env.opened, ['session-a'])
+  assert.equal(tabs[2].getAttribute('aria-selected'), 'true')
+  assert.equal(tabs[0].getAttribute('aria-selected'), 'false')
+  assert.equal(env.location.hash, '#/session/session-a/view/tool-todo-history')
 })

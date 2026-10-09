@@ -13,6 +13,8 @@
 
 - **本插件是地址栏的唯一写者**。任何其它写 fragment 的插件都不得同时启用（`dsh-session-url` 就是这样一个插件）。
 - **段位**：`#/session/<id>`（会话，`uiWorkspace.openSession`）、`#/panel/<panelId>`（主面板，`ctx.layout.selectPanel`）。输入侧接受复数与百分号编码，规范化成单数形式；**不认识的段位一律不碰**，只留一条诊断。
+- **会话视图路线**：`#/session/<id>/view/<viewId>`（有工作区时跟在会话 id 之后 ✓）。**`uiConversation` 服务在根插件里读不到** ✗（实测 `ctx.get('uiConversation')` = undefined ✓，它是会话作用域内的 ✓）—— **视图 id 从槽位读** ✓：`ctx.slots.entries('conversation.view')` 的 `options.id` ✓，按 `options.order` 排序 ✓（chat=0 / trajectory=10 / surface=20 / plus2=21 ✓）。头部页签容器是 **`[data-conversation-tabs]`** ✓、页签是 `button[role="tab"][aria-selected]` ✓（**没有 id 写在 DOM 里** ✗）→ **位置↔注册顺序** 对齐出 id ✓。默认视图（第一个 ✓）不写进链接 ✓。
+- **视图驱动必须排在工作区/会话分支之前** ✓，否则那两条会先 `return` 把它吞掉 ✓（历史 bug ✓）；且**不能被 `source === 'hash'` 挡住** ✓（粘贴视图链接就是要切过去 ✓）。
 - **工作区路线**：`#/workspace/<工作区名>/session/<会话id>`（侧栏形状 ✓）。工作区行是 `data-row-key="workspace:<uuid>"` ✓、**行文本就是工作区名** ✓（无 `data-workspace-*` ✗，实测 ✓）；会话所属工作区 = 树里**它之前最近的那个 workspace 行** ✓（`workspaceNameOf()` ✓，行锚点与反映共用 ✓）。名字是**装饰** ✓：`sameRoute` 对 workspace 路线只比**会话 id** ✓（名字过期也能落地 ✓）；读不到工作区行就退回 `#/session/<id>` ✓（不猜 ✓）。
 - **行锚点的 href 也要带工作区** ✓（右键"复制链接"直接给出带归属的链接 ✓）。
 - **作用域由视图决定，不靠猜**：主面板是应用级界面（列的是本机插件，不是某个对话），所以它的链接**不带**会话 id；只有会话级视图才写会话。
