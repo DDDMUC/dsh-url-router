@@ -1,7 +1,7 @@
 {
   "name": "dsh-url-router",
-  "version": "0.1.1",
-  "description": "DSH Web GUI plugin: one URL for every surface — the address bar names what is on screen (a conversation or a main panel) and a link opens it. Single owner of the URL fragment; browser half only, no dependencies, no telemetry.",
+  "version": "0.1.2",
+  "description": "DSH Web GUI 地址栏路由插件：每个界面都有自己的链接（会话 / 主面板 / 插件页与组件页 / 任务看板），整行即真链接，只写 fragment。",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/DDDMUC/dsh-url-router.git"
