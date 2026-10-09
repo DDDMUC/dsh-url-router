@@ -1496,3 +1496,66 @@ test('a section link is satisfied by the same section on another tab', () => {
   assert.deepEqual(env.warnings, [])
   assert.equal(decodeURIComponent(env.location.hash), '#/settings/General/Plans')
 })
+
+/** Add a sidebar tree: one workspace row followed by its conversation rows. */
+function addWorkspaceTree(dom, name, sessionKeys) {
+  const workspace = dom.document.createElement('div')
+  workspace.setAttribute('data-row-key', `workspace:ws-${name}`)
+  workspace.textContent = name
+  dom.body.appendChild(workspace)
+  for (const key of sessionKeys) {
+    const row = dom.document.createElement('div')
+    row.setAttribute('data-row-key', `session:${key}`)
+    row.setAttribute('role', 'treeitem')
+    dom.body.appendChild(row)
+  }
+}
+
+test('a conversation link leads with the workspace it lives in', () => {
+  // Given a sidebar whose workspace row (with its name) comes before its conversations
+  const dom = fakeDom(['workspace:ws-1', 'session:session-a'])
+  dom.rows[0].textContent = '作家助手'
+  const env = environment({ panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // Then both the address bar and the row's own link say where it lives
+  assert.equal(decodeURIComponent(env.location.hash), '#/workspace/作家助手/session/session-a')
+  const anchor = dom.document.querySelector('[data-dsh-part="url-router-link"]')
+  assert.ok(anchor !== null)
+  assert.equal(decodeURIComponent(anchor.getAttribute('href')), '#/workspace/作家助手/session/session-a')
+})
+
+test('a workspace link opens the conversation it names, whatever the name says', () => {
+  // Given a link whose workspace name no longer matches (the workspace was renamed)
+  const dom = fakeDom([])
+  addWorkspaceTree(dom, 'Default Project', ['session-b'])
+  const env = environment({ hash: '#/workspace/旧名字/session/session-b', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-b')
+  open(env)
+  // Then the conversation is opened: the name is what the link shows, not what it drives
+  assert.deepEqual(env.opened, ['session-b'])
+  // And the address bar settles on the workspace that really holds it
+  triggerObservers(dom)
+  assert.equal(decodeURIComponent(env.location.hash), '#/workspace/Default Project/session/session-b')
+  assert.deepEqual(env.warnings, [])
+})
+
+test('without a workspace row the conversation route stays as it was', () => {
+  // Given a sidebar with conversations but no workspace rows at all
+  const { env, dom } = openWithDom(['session:session-a'])
+  env.api.list('session-a')
+  env.api.view('session-a')
+  triggerObservers(dom)
+  // Then nothing is guessed: the plain conversation route is used
+  assert.equal(env.location.hash, '#/session/session-a')
+  const anchor = dom.document.querySelector('[data-dsh-part="url-router-link"]')
+  assert.ok(anchor !== null)
+  assert.equal(anchor.getAttribute('href'), '#/session/session-a')
+})
