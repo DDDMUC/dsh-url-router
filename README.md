@@ -29,9 +29,16 @@ dsh plugin --profile web add dsh-url-router
 | `#/panel/plugins/<package>` | an installed plugin's page | the panel's own list row control |
 | `#/panel/plugins/<item>` | a built-in plugin's page (`shell`, `agent-loop`, `subagent`, `web-search`) | the panel's own list row control |
 | `#/panel/plugins/<package>/<component>` | one component page inside that plugin's page | the panel's own component row control |
+| `#/panel/task-board/task/<taskId>` | one task's detail on the task board | the task board's own `dsh-taskboard-open-task` window event |
+| `#/panel/task-board/new` | the task board's new-task form | the task board's own `dsh-taskboard-new-task` window event |
 
 Route kinds are owned by this plugin; a kind it does not know (`#/settings/…`) is
 **left alone** with a single diagnostic, so another router can own it later.
+
+A panel's inner pages are the panel's own vocabulary, so this plugin never invents one:
+the plugin manager publishes `data-plugin-detail` / `data-plugin-item-detail` /
+`data-plugin-row-detail`, and the task board publishes `data-dsh-taskboard-open-task` /
+`data-dsh-taskboard-new-task` while asking for a task on a window event of the same name.
 
 ## Row links
 
@@ -108,5 +115,6 @@ dsh plugin --profile web add dsh-url-router
 ## 已知限制
 
 - 依赖官方 `ctx.layout.selectPanel` / `panelInfo` 与会话、工作区控制器；形态变了就自我禁用（一条诊断），不改官方行为。
+- **任务看板内部页已纳入**：`#/panel/task-board/task/<任务id>`（任务详情弹层）、`#/panel/task-board/new`（新建任务表单）。这两条靠任务看板自己发布的契约（`data-dsh-taskboard-open-task` / `data-dsh-taskboard-new-task` + 同名窗口事件），本插件不猜它的弹层。
 - **设置页分区暂未纳入**（设置包没有"打开某分区"的接缝；它们是 keyed list slot）。
 - 右栏 pane 能打开（`ISidebarRight.openTab(kind)`），但尚未纳入路由。
