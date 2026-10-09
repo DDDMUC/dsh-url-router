@@ -46,6 +46,7 @@ function environment(options = {}) {
   const warnings = []
   const opened = []
   const selected = []
+  const beginCalls = []
   const catalogSubscribers = new Set()
   const panelSubscribers = new Set()
   const rows = {}
@@ -194,6 +195,10 @@ function environment(options = {}) {
         return () => panelSubscribers.delete(handler)
       },
     },
+    beginNavigation() {
+      beginCalls.push('begin')
+      return { aborted: false }
+    },
     selectPanel(id) {
       selected.push(id)
       // The real layout THROWS for an id nobody registered:
@@ -220,7 +225,7 @@ function environment(options = {}) {
     slots,
     ...services,
   }
-  return { moduleExports, ctx, api, window, location, writes, warnings, opened, selected, listeners, disposers, layout, dispatched }
+  return { moduleExports, ctx, api, window, location, writes, warnings, opened, selected, beginCalls, listeners, disposers, layout, dispatched }
 }
 
 /** Apply the plugin and return the environment. */
@@ -1116,4 +1121,69 @@ test('a built-in plugin row is a real link to its page', () => {
   anchor.fire('click', { button: 0, defaultPrevented: false, preventDefault: () => { prevented += 1 }, stopPropagation: () => {} })
   assert.equal(prevented, 1)
   assert.equal(clicks, 1)
+})
+
+test('an open new-task form is named in the address bar', () => {
+  // Given the task board is on screen with its new-task form open
+  const dom = fakeDom([])
+  const board = dom.document.createElement('div')
+  board.setAttribute('data-dsh-taskboard-new-task', '')
+  dom.body.appendChild(board)
+  const env = environment({ panels: ['task-board'], activePanelId: 'task-board' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the address bar names the form
+  assert.equal(env.location.hash, '#/panel/task-board/new')
+})
+
+test('a new-task link asks the board for the form', () => {
+  // Given a link straight to the new-task form
+  const dom = fakeDom([])
+  const board = dom.document.createElement('div')
+  dom.body.appendChild(board)
+  const env = environment({ hash: '#/panel/task-board/new', panels: ['task-board'], activePanelId: 'task-board' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the board was asked for its form once, on its own contract
+  assert.equal(env.dispatched.filter(event => event.type === 'dsh-taskboard-new-task').length, 1)
+  // And once the board reports the form, the address bar keeps its canonical form
+  board.setAttribute('data-dsh-taskboard-new-task', '')
+  triggerObservers(dom)
+  assert.equal(env.location.hash, '#/panel/task-board/new')
+  assert.deepEqual(env.warnings, [])
+})
+
+test('the form outranks an open task in the address bar', () => {
+  // Given a board that reports both an open task and an open form (the form is on top)
+  const dom = fakeDom([])
+  const board = dom.document.createElement('div')
+  board.setAttribute('data-dsh-taskboard-open-task', 'task-7')
+  board.setAttribute('data-dsh-taskboard-new-task', '')
+  dom.body.appendChild(board)
+  const env = environment({ panels: ['task-board'], activePanelId: 'task-board' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the form is what the address bar names
+  assert.equal(env.location.hash, '#/panel/task-board/new')
+})
+
+test('selecting a linked panel aborts the navigation in flight first', () => {
+  // Given a panel link while another view owns the shell
+  const env = environment({ hash: '#/panel/plugins', panels: ['plugins'] })
+  env.api.list('session-view')
+  env.api.view('session-view')
+  // When the plugin applies
+  open(env)
+  // Then the layout was asked to abort navigation before the panel was selected
+  assert.equal(env.beginCalls.length, 1)
+  assert.deepEqual(env.selected, ['plugins'])
 })
