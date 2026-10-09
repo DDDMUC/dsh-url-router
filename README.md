@@ -26,7 +26,8 @@ dsh plugin --profile web add dsh-url-router
 |---|---|---|
 | `#/session/<id>` | the conversation the main view shows | `uiWorkspace.openSession(id)` |
 | `#/panel/<panelId>` | a main-column panel (`plugins`, `task-board`, `skill-explorer`, `ssh`, …) | `layout.selectPanel(id)` |
-| `#/panel/plugins/<package>` | one plugin's page inside the plugins panel | the panel's own list row control |
+| `#/panel/plugins/<package>` | an installed plugin's page | the panel's own list row control |
+| `#/panel/plugins/<item>` | a built-in plugin's page (`shell`, `agent-loop`, `subagent`, `web-search`) | the panel's own list row control |
 | `#/panel/plugins/<package>/<component>` | one component page inside that plugin's page | the panel's own component row control |
 
 Route kinds are owned by this plugin; a kind it does not know (`#/settings/…`) is

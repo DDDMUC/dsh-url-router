@@ -1037,3 +1037,83 @@ test('a task link only asks while the board has not reported it yet', () => {
   assert.deepEqual(env.dispatched, [])
   assert.equal(env.location.hash, '#/panel/task-board/task/task-7')
 })
+
+/** Add one built-in plugin row (the official group) to a fake DOM. */
+function addOfficialRow(dom, id) {
+  const row = dom.document.createElement('li')
+  row.setAttribute('data-plugin-item', id)
+  const button = dom.document.createElement('button')
+  button.setAttribute('aria-label', `Open ${id}`)
+  button.click = () => {
+    const page = dom.document.querySelector('[data-plugin-panel]') ?? dom.body
+    const detail = dom.document.createElement('div')
+    detail.setAttribute('data-plugin-item-detail', id)
+    page.appendChild(detail)
+  }
+  row.appendChild(button)
+  const panel = dom.document.createElement('section')
+  panel.setAttribute('data-plugin-panel', 'true')
+  panel.appendChild(row)
+  dom.body.appendChild(panel)
+  return { row, button }
+}
+
+test('an open built-in plugin page is named in the address bar', () => {
+  // Given the plugins panel shows one built-in plugin's page
+  const dom = fakeDom([])
+  const detail = dom.document.createElement('div')
+  detail.setAttribute('data-plugin-item-detail', 'shell')
+  dom.body.appendChild(detail)
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the address bar names that page
+  assert.equal(env.location.hash, '#/panel/plugins/shell')
+})
+
+test('a built-in plugin link opens its page through the panel control', () => {
+  // Given a link straight to a built-in plugin page
+  const dom = fakeDom([])
+  const { button } = addOfficialRow(dom, 'shell')
+  const env = environment({ hash: '#/panel/plugins/shell', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  let clicks = 0
+  const original = button.click
+  button.click = () => { clicks += 1; original() }
+  // When the plugin applies
+  open(env)
+  // Then that row's own control opened it, and the address bar keeps its canonical form
+  assert.equal(clicks, 1)
+  triggerObservers(dom)
+  assert.equal(env.location.hash, '#/panel/plugins/shell')
+  assert.deepEqual(env.warnings, [])
+})
+
+test('a built-in plugin row is a real link to its page', () => {
+  // Given the plugins panel listing one built-in plugin
+  const dom = fakeDom([])
+  const { row, button } = addOfficialRow(dom, 'shell')
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  let clicks = 0
+  const original = button.click
+  button.click = () => { clicks += 1; original() }
+  open(env)
+  // Then the row carries an anchor naming that page
+  const anchor = row.querySelector('[data-dsh-part="url-router-link"]')
+  assert.ok(anchor !== null)
+  assert.equal(anchor.getAttribute('href'), '#/panel/plugins/shell')
+  assert.equal(anchor.getAttribute('target'), '_blank')
+  // And a plain click keeps it on this page: the panel is selected and its control used
+  let prevented = 0
+  anchor.fire('click', { button: 0, defaultPrevented: false, preventDefault: () => { prevented += 1 }, stopPropagation: () => {} })
+  assert.equal(prevented, 1)
+  assert.equal(clicks, 1)
+})
