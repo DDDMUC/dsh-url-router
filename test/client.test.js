@@ -390,7 +390,7 @@ test('an archived conversation link is refused at once and the bar returns to th
 
 test('an unknown route kind is ignored with one diagnostic and no writes', () => {
   // Given a fragment that belongs to some other router
-  const env = environment({ hash: '#/settings/models' })
+  const env = environment({ hash: '#/somewhere/models' })
   env.api.list('session-view')
   env.api.view('session-view')
   // When the plugin applies
@@ -398,8 +398,8 @@ test('an unknown route kind is ignored with one diagnostic and no writes', () =>
   // Then it neither claims the route nor touches the address bar
   assert.deepEqual(env.writes, [])
   assert.deepEqual(env.selected, [])
-  assert.equal(env.location.hash, '#/settings/models')
-  assert.equal(env.warnings.filter(w => w.includes('settings')).length, 1)
+  assert.equal(env.location.hash, '#/somewhere/models')
+  assert.equal(env.warnings.filter(w => w.includes('somewhere')).length, 1)
 })
 
 test('a linked panel is never claimed twice by the same notification', () => {
@@ -560,6 +560,7 @@ function fakeDom(initialKeys) {
       return out
     }
     querySelector(selector) { return this.descendants().find(node => node.matches(selector)) ?? null }
+    querySelectorAll(selector) { return this.descendants().filter(node => node.matches(selector)) }
   }
   const body = new Node('body')
   const head = new Node('head')
@@ -1318,20 +1319,44 @@ test('a turn link pasted while running still explains itself', () => {
   assert.deepEqual(env.warnings, [])
 })
 
-/** Add the settings overlay and its sidebar entry to a fake DOM. */
-function addSettingsSurface(dom, onClick, withOverlay = true) {
-  const overlay = dom.document.createElement('div')
-  overlay.setAttribute('data-dsh-surface', 'settings')
-  overlay.setAttribute('role', 'dialog')
-  if (withOverlay) dom.body.appendChild(overlay)
+/**
+ * The settings overlay and its sidebar entry, in the shape the real GUI uses: the overlay
+ * carries `data-dsh-surface="settings"`, its sections are buttons inside a `<nav>`, and the
+ * platform marks the current one with `aria-current`.
+ */
+function addSettingsSurface(dom, { withOverlay = true, sections = ['General', 'Models'] } = {}) {
+  const build = () => {
+    const overlay = dom.document.createElement('div')
+    overlay.setAttribute('data-dsh-surface', 'settings')
+    overlay.setAttribute('role', 'dialog')
+    const nav = dom.document.createElement('nav')
+    for (const [index, label] of sections.entries()) {
+      const item = dom.document.createElement('button')
+      item.textContent = label
+      if (index === 0) item.setAttribute('aria-current', 'true')
+      item.click = () => {
+        for (const sibling of nav.children) sibling.removeAttribute('aria-current')
+        item.setAttribute('aria-current', 'true')
+      }
+      nav.appendChild(item)
+    }
+    overlay.appendChild(nav)
+    return overlay
+  }
+  if (withOverlay) dom.body.appendChild(build())
   const slot = dom.document.createElement('div')
   slot.setAttribute('data-slot', 'sidebar.settings')
   const button = dom.document.createElement('button')
   button.textContent = 'Settings'
-  button.click = () => { onClick?.(); dom.body.appendChild(dom.document.createElement('div')).setAttribute('data-dsh-surface', 'settings') }
+  button.click = () => dom.body.appendChild(build())
   slot.appendChild(button)
   dom.body.appendChild(slot)
-  return { overlay, slot, button }
+  /** The section button for a label, wherever the overlay currently is. */
+  const section = label => {
+    const overlay = dom.document.querySelector('[data-dsh-surface="settings"]')
+    return [...overlay.querySelectorAll('button')].find(candidate => candidate.textContent === label)
+  }
+  return { button, section, open: () => dom.body.appendChild(build()) }
 }
 
 test('an open settings overlay is named in the address bar', () => {
@@ -1343,40 +1368,60 @@ test('an open settings overlay is named in the address bar', () => {
   env.window.getComputedStyle = () => ({ position: 'static' })
   env.window.MutationObserver = dom.FakeObserver
   open(env)
-  // Then the address bar names the overlay, not the panel behind it
-  assert.equal(env.location.hash, '#/settings')
+  // Then the address bar names the overlay and the section it is showing
+  assert.equal(env.location.hash, '#/settings/General')
 })
 
 test('a settings link opens the overlay through the official entry', () => {
-  // Given a link to the settings surface
+  // Given a link to the settings surface while only the entry is on screen
   const dom = fakeDom([])
-  let clicks = 0
-  // Only the entry is on screen: the overlay is what the link has to open.
-  const { button } = addSettingsSurface(dom, () => { clicks += 1 }, false)
+  const { button } = addSettingsSurface(dom, { withOverlay: false })
   const env = environment({ hash: '#/settings', panels: ['plugins'], activePanelId: 'plugins' })
   env.window.document = dom.document
   env.window.getComputedStyle = () => ({ position: 'static' })
   env.window.MutationObserver = dom.FakeObserver
+  let clicks = 0
   const original = button.click
-  button.click = () => { original() }
+  button.click = () => { clicks += 1; original() }
   open(env)
   // Then the official entry was used, and the address bar keeps the canonical form
   assert.equal(clicks, 1)
   triggerObservers(dom)
-  assert.equal(env.location.hash, '#/settings')
+  assert.equal(env.location.hash, '#/settings/General')
   assert.deepEqual(env.warnings, [])
 })
 
-test('a settings section link is left alone', () => {
-  // Given a link naming a settings section, which this build cannot address
+test('an open settings section is named by its label', () => {
+  // Given the settings overlay showing one section as current
   const dom = fakeDom([])
-  addSettingsSurface(dom)
-  const env = environment({ hash: '#/settings/general', panels: ['plugins'], activePanelId: 'plugins' })
+  const { section } = addSettingsSurface(dom)
+  section('Models').click()
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
   env.window.document = dom.document
   env.window.getComputedStyle = () => ({ position: 'static' })
   env.window.MutationObserver = dom.FakeObserver
   open(env)
-  // Then it is reported as an unknown kind and nothing is claimed
-  assert.equal(env.warnings.filter(w => w.includes('settings/general')).length, 1)
-  assert.equal(env.location.hash, '#/settings/general')
+  // Then the address bar names that section, by the label the user reads
+  assert.equal(env.location.hash, '#/settings/Models')
+})
+
+test('a settings section link opens settings on that section', () => {
+  // Given a link naming a section while only the settings entry is on screen
+  const dom = fakeDom([])
+  const { section } = addSettingsSurface(dom, { withOverlay: false })
+  const env = environment({ hash: '#/settings/Models', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  let clicks = 0
+  open(env)
+  // When the entry opens the overlay, the retry reaches the section itself
+  const target = section('Models')
+  assert.ok(target !== undefined)
+  const original = target.click
+  target.click = () => { clicks += 1; original() }
+  triggerObservers(dom)
+  // Then that section is current and the address bar keeps the canonical label
+  assert.equal(clicks, 1)
+  assert.equal(env.location.hash, '#/settings/Models')
 })
