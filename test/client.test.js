@@ -1631,3 +1631,69 @@ test('a conversation view link switches that conversation to that view', () => {
   assert.equal(tabs[0].getAttribute('aria-selected'), 'false')
   assert.equal(env.location.hash, '#/session/session-a/view/tool-todo-history')
 })
+
+/** A trajectory row: the views publish identities like `assistant%0080%0032`. */
+function addTrajectoryRow(dom, attribute, value, view = {}) {
+  const row = dom.document.createElement('div')
+  row.setAttribute(attribute, value)
+  if (view.scrollIntoView !== undefined) row.scrollIntoView = view.scrollIntoView
+  dom.body.appendChild(row)
+  return row
+}
+
+/** Open a page with one conversation on screen. */
+function openConversationPage(dom, options = {}) {
+  const env = environment({ panels: [], activePanelId: null, ...options })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  return env
+}
+
+const fireRowClick = (dom, target) => dom.document.fire('click', {
+  target, button: 0, defaultPrevented: false, preventDefault() {}, stopPropagation() {},
+})
+
+test('a click on a trajectory row names that row in the address bar', () => {
+  // Given a trajectory row that publishes a kind/scope/id identity
+  const dom = fakeDom([])
+  const row = addTrajectoryRow(dom, 'data-trajectory-row-key', 'assistant%0080%0032')
+  const env = openConversationPage(dom)
+  // When it is clicked (passively: nothing is prevented)
+  fireRowClick(dom, row)
+  // Then the address bar names that row as a readable path
+  assert.equal(env.location.hash, '#/session/session-a/row/assistant/80/32')
+})
+
+test('a click on a family trajectory row names its turn instead', () => {
+  // Given a row from the family view, which publishes a turn cell rather than a row key
+  const dom = fakeDom([])
+  const row = addTrajectoryRow(dom, 'data-dshts-turn', '33')
+  const env = openConversationPage(dom)
+  // When it is clicked
+  fireRowClick(dom, row)
+  // Then the turn is what the address bar can honestly say
+  assert.equal(env.location.hash, '#/session/session-a/turn/33')
+})
+
+test('a row link opens its conversation and scrolls to the row when it is rendered', () => {
+  // Given a link naming one tool call, and that row already rendered
+  const dom = fakeDom([])
+  let scrolled = 0
+  addTrajectoryRow(dom, 'data-trajectory-row-key', 'tool%00call%00call_ce3a', { scrollIntoView: () => { scrolled += 1 } })
+  const env = environment({ hash: '#/session/session-a/row/tool/call/call_ce3a', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  open(env)
+  env.api.view('session-a')
+  for (let i = 0; i < 3; i++) triggerObservers(dom)
+  // Then the conversation is open and that row was scrolled to
+  assert.deepEqual(env.opened, ['session-a'])
+  assert.ok(scrolled >= 1, `expected the row to be scrolled to, saw ${scrolled}`)
+  assert.equal(env.location.hash, '#/session/session-a/row/tool/call/call_ce3a')
+})
