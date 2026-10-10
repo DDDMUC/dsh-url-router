@@ -1774,6 +1774,7 @@ function addRightBarTab(dom, tabId, active) {
   tab.setAttribute('role', 'tab')
   tab.setAttribute('aria-selected', active ? 'true' : 'false')
   tab.setAttribute('data-dockkit-tab', tabId)
+  tab.textContent = tabId
   strip.appendChild(tab)
   root.appendChild(strip)
   dom.body.appendChild(root)
@@ -1783,7 +1784,7 @@ function addRightBarTab(dom, tabId, active) {
 test('the active tab element names the pane in the address bar', () => {
   // Given a right bar whose strip holds one tab, and the service says nothing
   const dom = fakeDom([])
-  addRightBarTab(dom, 'sidebar://files', true)
+  addRightBarTab(dom, 'Files', true)
   const env = environment({ panels: [], activePanelId: null, sidebarRightTabs: { getSnapshot: () => ({ activeTabId: undefined }) } })
   env.window.document = dom.document
   env.window.getComputedStyle = () => ({ position: 'static' })
@@ -1791,14 +1792,14 @@ test('the active tab element names the pane in the address bar', () => {
   env.api.list('session-a')
   env.api.view('session-a')
   open(env)
-  // Then the tab's own id carries the kind, so the route says it
-  assert.equal(env.location.hash, '#/session/session-a/pane/files')
+  // Then the tab's own name carries the kind, so the route says it
+  assert.equal(env.location.hash, '#/session/session-a/pane/Files')
 })
 
 test('a tab id with a uuid still names the kind it belongs to', () => {
   // Given a kind that may be opened more than once, so the bar appends a uuid
   const dom = fakeDom([])
-  addRightBarTab(dom, 'sidebar://terminal/2f9c1a7e-2b3f-4d51-9f0e-7a1c6d5b4e88', true)
+  addRightBarTab(dom, 'Terminal', true)
   const env = environment({ panels: [], activePanelId: null, sidebarRightTabs: { getSnapshot: () => ({ activeTabId: undefined }) } })
   env.window.document = dom.document
   env.window.getComputedStyle = () => ({ position: 'static' })
@@ -1806,8 +1807,8 @@ test('a tab id with a uuid still names the kind it belongs to', () => {
   env.api.list('session-a')
   env.api.view('session-a')
   open(env)
-  // Then the route names the kind, not the uuid
-  assert.equal(env.location.hash, '#/session/session-a/pane/terminal')
+  // Then the route names the kind the tab is labelled with
+  assert.equal(env.location.hash, '#/session/session-a/pane/Terminal')
 })
 
 test('a pane link drives the session path with the session first', () => {
