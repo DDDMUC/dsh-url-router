@@ -37,7 +37,7 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 | `#/panel/task-board/task/<任务 id>` | 任务看板里某个任务的详情 | 任务看板自己的 `dsh-taskboard-open-task` 窗口事件 |
 | `#/panel/task-board/new` | 任务看板的新建任务表单 | 任务看板自己的 `dsh-taskboard-new-task` 窗口事件 |
 
-输入侧宽容：`sessions`/`panels` 复数、百分号编码都接受，一律规范化成上面的形式。**不认识的段位不碰**（例如 `#/settings/…`），只留一条诊断，留给以后的路由器。
+输入侧宽容：`sessions`/`panels` 复数、百分号编码都接受，一律规范化成上面的形式。**不认识的段位不碰**，只留一条诊断（留给以后的路由器，或者别的插件写的深链形态 ✓ —— 一个 fragment 只能有一个写者 ✓，所以读到不属于本插件的形态时会**明确说一句**，而不是静默 ✗）。
 
 面板内部页是**面板自己的词汇表**，本插件不发明：插件管理器发布 `data-plugin-detail` / `data-plugin-item-detail` / `data-plugin-row-detail`，任务看板发布 `data-dsh-taskboard-open-task` / `data-dsh-taskboard-new-task`，并接受同名窗口事件。
 
@@ -65,10 +65,10 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 ### 已知限制
 
 - **轮次链接是"位置"不是"界面"**：点某一轮，地址栏记下 `#/session/<id>/turn/<n>` ✓；但**粘贴它只会打开那个对话，不会滚到那一轮** ✗ —— 官方把"跳到某轮"（`scrollToTurn` / `JUMP_PAGE_OPTIONS`）留在 chat 包**内部**，没有对外接缝 ✗，逐页翻也不可靠 ✗（实测「Load earlier」按钮在两个会话上都没加载出更早的轮次 ✗）。要真跳转，需要官方开一个服务或槽位 ✓。
-- **右栏 pane 已接入但未真机验证**：`#/panel/<面板>/pane/<页签 kind>` ✓（读 `sidebarRightTabs` 的 `activeTabId` ✓，驱动用它的 `openTab` ✓）。**注意**：本机组合里右栏没有任何页签注册 ✗，所以只跑过单测 ✓；页签 kind 由注册方决定 ✓（例如官方 `-files` / `-terminal` / `-browser` / `-documentpreview` 包注册的那些 ✓）。
+- **右栏 pane 已接入，但仍未端到端验证** ✗ —— 原因**已更新** ✓：页签**不是不存在** ✓，官方**已经注册**了（`sidebar-files` / `sidebar-terminal` / `sidebar-documentpreview` … ✓，boot manifest 里能看到 ✓），只是这个组合**启动时右栏是空的** ✓（`data-dockkit-empty` ✓ + 空态按钮「Add files or run commands」✓），页签要由界面动作打开 ✓。`#/panel/<面板>/pane/<页签 kind>` ✓ 读 `sidebarRightTabs` 的 `activeTabId` ✓、驱动用它的 `openTab` ✓（走**服务** ✓，因为实测右栏页签上**没有** `data-sidebar-right-tab` ✗，只有 dockkit 家族属性 ✓ —— 其中 `data-dockkit-pane-active` **是主区共用的** ✗，不能当右栏判据 ✓）。
 - **设置面板已纳入**：`#/settings` ✓、**`#/settings/<分区>`** ✓、**`#/settings/<分区>/<页签>`** ✓（页签靠标准 `role="tab"` + `aria-selected` ✓，分区内任何页签都吃这一套 ✓）。分区**没有稳定 id** ✗（实测：导航项上只有 `aria-current="true"` ✓，父链是 `nav` ✓，右侧内容区一个 `data-*` 都没有 ✗；官方内部的 `openSection(id)` 也不对外 ✗）→ 所以**分区的身份就是它的显示名** ✓：反映读「`aria-current="true"` 且属于 `nav`」的那个按钮的**标签文字** ✓，驱动按标签点 ✓。含义：**换语言或官方改文案后，旧的分区链接会失效** ✗（但你重新点一次，地址栏就会写出新链接 ✓ —— 自洽、不过期 ✓）。裸 `#/settings` 只要面板开着就算落地 ✓，随后地址栏自动升级为具体分区 ✓。
 - **设置页分区暂未纳入（旧描述）**：设置包没有"打开某个分区"的接缝（它们是 keyed list slot），只能等它自己发布类似契约。
-- **右栏 pane 与会话内轮次/消息锚点暂未纳入**。
+- **会话内的轮次与行锚点已纳入** ✓：`#/session/<id>/turn/<n>` ✓（只做反映 ✓）、`#/session/<id>/row/<类>/<作用域>/<id>` ✓（反映 + 尽力滚动 ✓，含可证明时的轮次归属 ✓）。**跳转仍然做不到** ✗（官方把 `scrollToTurn` 留在包内部 ✓，已向官方提 <https://github.com/deepseek-ai/deepseek-harness/discussions/9339> ✓）。
 - **技能中心 / SSH 的内部页**：需要它们各自发布"当前实体 id + 按 id 打开"的契约（任务看板就是这么做的）。
 - 链接**同名不跨机**：会话 id 只在同一台机器、同一个 `DSH_HOME` 下有意义。
 
@@ -101,7 +101,7 @@ dsh plugin --profile web add dsh-url-router
 | `#/panel/task-board/task/<taskId>` | one task's detail on the task board |
 | `#/panel/task-board/new` | the task board's new-task form |
 
-A kind it does not know (`#/settings/…`) is left alone with a single diagnostic. Panel inner pages are the panel's own vocabulary: the plugin manager publishes `data-plugin-detail` / `data-plugin-item-detail` / `data-plugin-row-detail`, the task board publishes `data-dsh-taskboard-open-task` / `data-dsh-taskboard-new-task`.
+A kind it does not know is left alone with a single diagnostic (a fragment has exactly one writer, so a foreign shape is named rather than silently ignored). Panel inner pages are the panel's own vocabulary: the plugin manager publishes `data-plugin-detail` / `data-plugin-item-detail` / `data-plugin-row-detail`, the task board publishes `data-dsh-taskboard-open-task` / `data-dsh-taskboard-new-task`.
 
 ### Every row is a real link
 
@@ -118,4 +118,4 @@ Conversation rows and both plugin-list groups carry a transparent full-row ancho
 
 ### Limits
 
-Settings sections (no open seam yet), the right-hand panes, and in-conversation turn anchors are not routed. Skill Center / SSH inner pages need their own "publish the current id + accept an open request" contract, the way the task board did. Session links are meaningful on the same machine and `DSH_HOME` only.
+Still open: jumping to a named turn (the official chat keeps `scrollToTurn` inside its own package — asked for a seam in discussion #9339), the right-hand panes (wired, but the right bar starts empty in this composition so they are not verified end to end yet), and Skill Center / SSH inner pages, which need their own "publish the current id + accept an open request" contract the way the task board did. Session links are meaningful on the same machine and `DSH_HOME` only.
