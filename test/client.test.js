@@ -1317,3 +1317,66 @@ test('a turn link pasted while running still explains itself', () => {
   assert.equal(env.location.hash, '#/session/session-a/turn/86')
   assert.deepEqual(env.warnings, [])
 })
+
+/** Add the settings overlay and its sidebar entry to a fake DOM. */
+function addSettingsSurface(dom, onClick, withOverlay = true) {
+  const overlay = dom.document.createElement('div')
+  overlay.setAttribute('data-dsh-surface', 'settings')
+  overlay.setAttribute('role', 'dialog')
+  if (withOverlay) dom.body.appendChild(overlay)
+  const slot = dom.document.createElement('div')
+  slot.setAttribute('data-slot', 'sidebar.settings')
+  const button = dom.document.createElement('button')
+  button.textContent = 'Settings'
+  button.click = () => { onClick?.(); dom.body.appendChild(dom.document.createElement('div')).setAttribute('data-dsh-surface', 'settings') }
+  slot.appendChild(button)
+  dom.body.appendChild(slot)
+  return { overlay, slot, button }
+}
+
+test('an open settings overlay is named in the address bar', () => {
+  // Given the settings overlay is up over whatever was on screen
+  const dom = fakeDom([])
+  addSettingsSurface(dom)
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the address bar names the overlay, not the panel behind it
+  assert.equal(env.location.hash, '#/settings')
+})
+
+test('a settings link opens the overlay through the official entry', () => {
+  // Given a link to the settings surface
+  const dom = fakeDom([])
+  let clicks = 0
+  // Only the entry is on screen: the overlay is what the link has to open.
+  const { button } = addSettingsSurface(dom, () => { clicks += 1 }, false)
+  const env = environment({ hash: '#/settings', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  const original = button.click
+  button.click = () => { original() }
+  open(env)
+  // Then the official entry was used, and the address bar keeps the canonical form
+  assert.equal(clicks, 1)
+  triggerObservers(dom)
+  assert.equal(env.location.hash, '#/settings')
+  assert.deepEqual(env.warnings, [])
+})
+
+test('a settings section link is left alone', () => {
+  // Given a link naming a settings section, which this build cannot address
+  const dom = fakeDom([])
+  addSettingsSurface(dom)
+  const env = environment({ hash: '#/settings/general', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then it is reported as an unknown kind and nothing is claimed
+  assert.equal(env.warnings.filter(w => w.includes('settings/general')).length, 1)
+  assert.equal(env.location.hash, '#/settings/general')
+})
