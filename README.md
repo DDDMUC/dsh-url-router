@@ -26,6 +26,8 @@ dsh plugin --profile web add dsh-url-router
 |---|---|---|
 | `#/session/<id>` | the conversation the main view shows | `uiWorkspace.openSession(id)` |
 | `#/panel/<panelId>` | a main-column panel (`plugins`, `task-board`, `skill-explorer`, `ssh`, …) | `layout.selectPanel(id)` |
+| `#/panel/plugins/<package>` | one plugin's page inside the plugins panel | the panel's own list row control |
+| `#/panel/plugins/<package>/<component>` | one component page inside that plugin's page | the panel's own component row control |
 
 Route kinds are owned by this plugin; a kind it does not know (`#/settings/…`) is
 **left alone** with a single diagnostic, so another router can own it later.
@@ -59,6 +61,9 @@ fragment). The link shape `#/session/<id>` is identical, so existing links keep 
 - **`replaceState` only**, so browsing panels does not fill the Back stack.
 - **Scopes are declared, not guessed.** A main panel is application-level (it lists this
   machine's plugins, not a conversation), so its link carries no session id.
+- **A link stays authoritative until it lands** (at most one boot, 8 s): once the named
+  surface is on screen the link stops owning the URL, so walking deeper inside a panel
+  updates the address bar instead of being pulled back to the link.
 - **A link wins for one boot.** Both owners restore their own remembered state while the
   page loads, so a linked surface stays authoritative for 8 s; after that the view owns
   the URL again.

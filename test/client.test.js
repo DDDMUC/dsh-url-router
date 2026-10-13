@@ -883,3 +883,88 @@ test('a detail link is retried once the panel list has rendered', () => {
   assert.equal(env.location.hash, '#/panel/plugins/dsh-late')
   assert.deepEqual(env.warnings, [])
 })
+
+/** Add one component row (a `data-plugin-row` row) to a fake DOM. */
+function addComponentRow(dom, hook, rowId) {
+  const row = dom.document.createElement('li')
+  row.setAttribute('data-plugin-row', hook)
+  const button = dom.document.createElement('button')
+  button.setAttribute('aria-label', `Configure ${rowId}`)
+  button.click = () => {
+    const page = dom.document.querySelector('[data-plugin-panel]') ?? dom.body
+    const detail = dom.document.createElement('div')
+    detail.setAttribute('data-plugin-row-detail', hook)
+    page.appendChild(detail)
+  }
+  row.appendChild(button)
+  const panel = dom.document.querySelector('[data-plugin-panel]') ?? dom.body
+  panel.appendChild(row)
+  dom.body.appendChild(panel)
+  return { row, button }
+}
+
+test('an open component page is named in the address bar', () => {
+  // Given the plugins panel shows a component page of one package
+  const dom = fakeDom([])
+  addPluginRow(dom, 'dsh-free-search')
+  const detail = dom.document.createElement('div')
+  detail.setAttribute('data-plugin-detail', 'dsh-free-search')
+  dom.body.appendChild(detail)
+  const env = environment({ hash: '#/panel/plugins/dsh-free-search', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-free-search')
+  // When a component page opens inside it
+  const rowDetail = dom.document.createElement('div')
+  rowDetail.setAttribute('data-plugin-row-detail', 'dsh-free-search#web-search-free')
+  dom.body.appendChild(rowDetail)
+  triggerObservers(dom)
+  // Then the address bar names the component, under the package it belongs to
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-free-search/web-search-free')
+})
+
+test('a component link opens the package page and then the component', () => {
+  // Given a link straight to a component page
+  const dom = fakeDom([])
+  const { button: pkgButton } = addPluginRow(dom, 'dsh-free-search')
+  const { button: rowButton } = addComponentRow(dom, 'include:web-search-free', 'web-search-free')
+  const env = environment({ hash: '#/panel/plugins/dsh-free-search/web-search-free', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  let pkgClicks = 0
+  let rowClicks = 0
+  const originalPkg = pkgButton.click
+  const originalRow = rowButton.click
+  pkgButton.click = () => { pkgClicks += 1; originalPkg() }
+  rowButton.click = () => { rowClicks += 1; originalRow() }
+  // When the plugin applies
+  open(env)
+  // Then the package page was opened first, then its component row
+  assert.equal(pkgClicks, 1)
+  assert.equal(rowClicks, 1)
+  triggerObservers(dom)
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-free-search/web-search-free')
+  assert.deepEqual(env.warnings, [])
+})
+
+test('a row hook spelled with a kind prefix is parsed too', () => {
+  // Given a component page whose hook carries a kind prefix instead of a package
+  const dom = fakeDom([])
+  const detail = dom.document.createElement('div')
+  detail.setAttribute('data-plugin-detail', 'dsh-free-search')
+  dom.body.appendChild(detail)
+  const env = environment({ hash: '#/panel/plugins/dsh-free-search', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const rowDetail = dom.document.createElement('div')
+  rowDetail.setAttribute('data-plugin-row-detail', 'include:web-search-free')
+  dom.body.appendChild(rowDetail)
+  triggerObservers(dom)
+  // Then the package still comes from the link's own segment
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-free-search/web-search-free')
+})
