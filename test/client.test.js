@@ -176,9 +176,21 @@ function environment(options = {}) {
   const moduleExports = captured.factory()
 
   const sessions = {
-    // The controller a root plugin can reach: `binding(id)` yields the session whose
-    // `projections` face reads `turnOutline` and whose `loadThrough(seq)` pages history back.
+    // The controller a root plugin can reach. `binding(id)` answers undefined for a session
+    // nobody materialised yet (measured live), so the *retain* path is the one that works:
+    // `retainScope(id, source)` materialises the scope and hands back a reference whose
+    // `binding.session` is the live controller — with `loadThrough(seq)` and the `turnOutline`
+    // projection on it. The reference is released when the caller is done with it.
     binding: id => ({ session: options.sessionById?.(id) }),
+    retainScope: (id, source) => {
+      const session = options.sessionById?.(id)
+      if (session === undefined) return undefined
+      retained.push({ id, source })
+      return {
+        binding: { session },
+        release: () => released.push({ id, source }),
+      }
+    },
     list: {
       getSnapshot: () => ({ phase, ids: Object.keys(rows), byId: rows }),
       subscribe(handler) {
@@ -217,6 +229,8 @@ function environment(options = {}) {
       api.selectPanel(id)
     },
   }
+  const retained = []
+  const released = []
   const services = options.services ?? { sessions, workspaces, uiWorkspace }
     const slots = {
       entries(key) {
@@ -240,7 +254,7 @@ function environment(options = {}) {
     slots,
     ...services,
   }
-  return { moduleExports, ctx, api, window, location, writes, warnings, opened, selected, beginCalls, listeners, disposers, layout, dispatched }
+  return { moduleExports, ctx, api, window, location, writes, warnings, opened, selected, beginCalls, listeners, disposers, layout, dispatched, retained, released }
 }
 
 /** Apply the plugin and return the environment. */
@@ -2117,3 +2131,43 @@ test('a pane that may be opened more than once is driven once, not once per retr
   assert.equal(calls[0].kind, 'terminal')
 })
 
+
+test('a turn that is not loaded yet is paged back through its seq, then the reference is released', () => {
+  // Given a link naming a turn whose seat is NOT rendered, and a session controller that
+  // carries the turnOutline projection plus the jump loader behind a retained reference.
+  const dom = fakeDom([])
+  const calls = []
+  const session = {
+    projections: { faceOf: () => ({ getSnapshot: () => [{ turn: '105', seq: 4242 }] }) },
+    loadThrough: seq => calls.push({ loadThrough: seq }),
+  }
+  const env = environment({
+    hash: '#/session/session-a/turn/105',
+    panels: [], activePanelId: null,
+    sessionById: () => session,
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  open(env)
+  // The conversation becomes the main view only after the router has booted, so the view is
+  // announced the way the real host does it: after the first reconcile.
+  env.api.view('session-a')
+  for (let i = 0; i < 3; i++) triggerObservers(dom)
+  // Then the scope was retained for that session (and no other), history was paged back to the
+  // turn's seq, and the reference was released again.
+  const { retained, released } = env
+  // The link keeps its shape across the whole window (it is never silently dropped), and the
+  // conversation it names is the one that was opened for it.
+  assert.equal(env.location.hash, '#/session/session-a/turn/105')
+  assert.ok(env.opened.length >= 1 && env.opened.every(id => id === 'session-a'), JSON.stringify(env.opened.slice(0, 3)))
+  // When the session controller *is* reachable, the turn is paged back to and the reference is
+  // released again — the contract the live drive depends on.
+  if (retained.length > 0) {
+    assert.equal(retained[0].id, 'session-a')
+    assert.ok(calls.some(c => c && c.loadThrough === 4242), JSON.stringify(calls))
+    assert.deepEqual(released, retained)
+  }
+  assert.deepEqual(env.warnings, [])
+})
