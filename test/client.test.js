@@ -50,6 +50,7 @@ function environment(options = {}) {
   const panelSubscribers = new Set()
   const rows = {}
   const archivedSessionIds = []
+  const dispatched = []
   let phase = options.phase ?? 'ready'
   let clock = START
   let sequence = 0
@@ -140,6 +141,18 @@ function environment(options = {}) {
         captured = spec
       },
     },
+    // Minimal event plumbing: the router tears the task board's open request through
+    // a window event, so the fake window records what was dispatched.
+    CustomEvent: class {
+      constructor(type, init) {
+        this.type = type
+        this.detail = init?.detail
+      }
+    },
+    dispatchEvent(event) {
+      dispatched.push(event)
+      return true
+    },
   }
 
   const context = vm.createContext({
@@ -207,7 +220,7 @@ function environment(options = {}) {
     slots,
     ...services,
   }
-  return { moduleExports, ctx, api, window, location, writes, warnings, opened, selected, listeners, disposers, layout }
+  return { moduleExports, ctx, api, window, location, writes, warnings, opened, selected, listeners, disposers, layout, dispatched }
 }
 
 /** Apply the plugin and return the environment. */
@@ -967,4 +980,60 @@ test('a row hook spelled with a kind prefix is parsed too', () => {
   triggerObservers(dom)
   // Then the package still comes from the link's own segment
   assert.equal(env.location.hash, '#/panel/plugins/dsh-free-search/web-search-free')
+})
+
+test('an open task on the task board is named in the address bar', () => {
+  // Given the task board is on screen with one task's detail open
+  const dom = fakeDom([])
+  const board = dom.document.createElement('div')
+  board.setAttribute('data-dsh-taskboard-open-task', 'task-7')
+  dom.body.appendChild(board)
+  const env = environment({ panels: ['task-board'], activePanelId: 'task-board' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the address bar names the task, under the panel that owns it
+  assert.equal(env.location.hash, '#/panel/task-board/task/task-7')
+})
+
+test('a task link asks the task board to open that task', () => {
+  // Given a link straight to one task on the board
+  const dom = fakeDom([])
+  const board = dom.document.createElement('div')
+  board.setAttribute('data-dsh-taskboard-open-task', '')
+  dom.body.appendChild(board)
+  const env = environment({ hash: '#/panel/task-board/task/task-7', panels: ['task-board'], activePanelId: 'task-board' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the board was asked for that task on its own contract
+  const asked = env.dispatched.filter(event => event.type === 'dsh-taskboard-open-task')
+  assert.equal(asked.length, 1)
+  assert.equal(asked[0].detail.taskId, 'task-7')
+  // And once the board reports that task, the address bar keeps its canonical form
+  board.setAttribute('data-dsh-taskboard-open-task', 'task-7')
+  triggerObservers(dom)
+  assert.equal(env.location.hash, '#/panel/task-board/task/task-7')
+  assert.deepEqual(env.warnings, [])
+})
+
+test('a task link only asks while the board has not reported it yet', () => {
+  // Given the board already showing the linked task
+  const dom = fakeDom([])
+  const board = dom.document.createElement('div')
+  board.setAttribute('data-dsh-taskboard-open-task', 'task-7')
+  dom.body.appendChild(board)
+  const env = environment({ hash: '#/panel/task-board/task/task-7', panels: ['task-board'], activePanelId: 'task-board' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the link was satisfied by the board itself: no request is sent
+  assert.deepEqual(env.dispatched, [])
+  assert.equal(env.location.hash, '#/panel/task-board/task/task-7')
 })
