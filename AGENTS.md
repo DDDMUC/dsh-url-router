@@ -69,3 +69,18 @@
 - **对外接缝（#8）**：`ctx.urlRouter`（服务）或同名窗口事件 ✓，让第三方把"当前界面"写成链接 ✓，并由本插件**统一裁决** fragment 所有权 ✓ —— 这同时也是 #4 的真正解法 ✓。
 - **面板内层页面（#5）**：技能中心 / SSH 需要各自发契约 ✓（`data-*` + 接受同名窗口事件 ✓）；任务看板是现成先例 ✓，可作为 PR 往上游推 ✓（需要各仓 owner 同意 ✓）。
 - **跳转到某一轮（官方）**：已发讨论 <https://github.com/deepseek-ai/deepseek-harness/discussions/9339> ✓（请求一个 `scrollToTurn(turn)` 服务或 `dsh-chat-scroll-to-turn` 窗口事件 ✓；退路是驱动 rail 刻度点击 ✗ 虚拟化下不可靠 ✓）。
+
+## 已实现：#4 外部 fragment 共存 / #7 路由体检（2026-10-11）
+
+- **#4 一个 URL 只有一个 fragment** ✓：两个写者只能轮流拥有 ✓，本插件**绝不假装合并** ✗。
+  - `foreignFragmentOf(hash)` ✓：不以 `#/kind…`（或 `#<alias>`）开头的 fragment 即外来 ✓。
+  - 读到外来 fragment：**命名一次** ✓（`… was written by another plugin … a URL has one fragment, so this router leaves it alone — enable only one writer` ✓）并退开 ✓。
+  - `reflect` 遇到外来 fragment：**不覆盖** ✓ + 一条说明 ✓（`not writing a route while … is in the address bar` ✓）。
+  - unknown kind 记入 `observed.ignored` ✓ 供体检 ✓。
+- **#7 `window.__dshUrlRouter.report()`** ✓（挂在 `startUrlRouting` 内部作用域 ✓ 才能读到 `linked`/`attempts` ✗ 放外面必抛 ✓）：
+  版本 / 当前 fragment / `canonical` / 正在落地的链接与重试次数 / **16 项钩子计数**（会话行·工作区行·视图 tab 与 id 列表·轮次·轨迹行·轮次边界·插件行·官方项·设置覆盖层与分区·任务看板两项·右栏 pane 与 **kinds 列表**）/ 兼容告警 / 外来 fragment / 被不碰的段位。
+  **它绝不出错、绝不写任何东西** ✓（整段 `guard` 包裹 ✓）。
+- **`ROUTER_VERSION`** 由测试断言等于 `package.json` ✓（发布时忘改会被测试抓住 ✓）。
+- **实测顺带发现（下次可用）** ✓：`paneKinds()` 走 `entries()` 能拿到**全量 7 个 kind**：
+  `guide / subagentchat / changes-review / plan / files / text / terminal` ✓
+  —— 上一轮"根作用域只有 guide"的结论**下早了** ✗（那次读的是 `kinds` getter ✗）。⇒ **右栏 pane 的驱动很可能真能做** ✓，用这些 kind 值 ✓。
