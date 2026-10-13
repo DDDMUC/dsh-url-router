@@ -567,6 +567,18 @@ function fakeDom(initialKeys) {
       // the structural hooks rows are found by. The fake DOM spells tag names upper
       // case, so tag comparisons are case-insensitive.
       // `[attr]` / `tag[attr]` (presence only) is used as much as the valued form.
+// `:not([hidden])` — the official viewport selector: a seat that is hidden, or inside
+// anything hidden, is not on screen, and this fake DOM has to agree with that.
+const notHidden = /^(.*):not\(\[hidden\]\)$/.exec(selector)
+if (notHidden !== null) {
+	if (!this.matches(notHidden[1])) return false
+	let parent = this
+	while (parent !== undefined && parent !== null) {
+		if (parent.hidden === true) return false
+		parent = parent.parentElement
+	}
+	return true
+}
       const presence = /^([a-zA-Z][a-zA-Z0-9-]*)?\[([a-z-]+)\]$/.exec(selector)
       if (presence !== null) {
         const [, tag, name] = presence
