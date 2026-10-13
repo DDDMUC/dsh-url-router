@@ -25,6 +25,8 @@ dsh plugin --profile web add dsh-url-router
 dsh plugin --profile web add "link:/path/to/dsh-url-router"
 ```
 
+**已登记进社区插件索引** ✓ —— [zhu1090093659/dsh-community-plugins](https://github.com/zhu1090093659/dsh-community-plugins) 的 `community.json` 是本插件在 DSH Workshop 商店与 dsh-market.com 清单里的唯一数据源 ✓（登记条目 `dsh-url-router`，`ui/panel` ✓）。
+
 ### 路由表
 
 | 地址 | 界面 | 由谁打开 |
@@ -94,6 +96,7 @@ dsh plugin --profile web add dsh-url-router
 # restart `dsh web`, then hard-refresh the browser
 ```
 
+Listed in the community plugin index: [zhu1090093659/dsh-community-plugins](https://github.com/zhu1090093659/dsh-community-plugins) keeps `community.json`, the single source for the DSH Workshop store catalog and the dsh-market.com manifest (entry `dsh-url-router`, `ui/panel`).
 ### Routes
 
 | Route | Surface |
