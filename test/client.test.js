@@ -176,6 +176,9 @@ function environment(options = {}) {
   const moduleExports = captured.factory()
 
   const sessions = {
+    // The controller a root plugin can reach: `binding(id)` yields the session whose
+    // `projections` face reads `turnOutline` and whose `loadThrough(seq)` pages history back.
+    binding: id => ({ session: options.sessionById?.(id) }),
     list: {
       getSnapshot: () => ({ phase, ids: Object.keys(rows), byId: rows }),
       subscribe(handler) {
@@ -230,6 +233,7 @@ function environment(options = {}) {
     get(name) {
       if (name === 'layout') return options.layout === null ? undefined : (options.layout ?? layout)
       if (name === 'sidebarRightTabs') return options.sidebarRightTabs
+      if (name === 'uiConversation') return options.uiConversation
       if (name === 'sidebarRight') return options.sidebarRight ?? options.sidebarRightTabs
       return undefined
     },
@@ -251,7 +255,7 @@ test('the browser module advertises the services it needs', () => {
   // When its exports are inspected
   // Then apply and the injected service names are the documented ones
   assert.equal(typeof env.moduleExports.apply, 'function')
-  assert.equal([...env.moduleExports.inject].join(','), 'sessions,workspaces,uiWorkspace,slots,sidebarRightTabs')
+  assert.equal([...env.moduleExports.inject].join(','), 'sessions,workspaces,uiWorkspace,slots,sidebarRightTabs,uiConversation')
 })
 
 test('a panel link selects that panel and keeps the address bar canonical', () => {
@@ -1275,18 +1279,30 @@ test('a click on a control inside a turn is left alone', () => {
   assert.equal(env.location.hash, before)
 })
 
-test('a turn link opens the conversation and says the turn is not scrolled to', () => {
-  // Given a link naming a turn
+test('a turn link opens the conversation and drives the position', () => {
+  // Given a link naming a turn of a conversation that is not on screen yet
   const dom = fakeDom([])
-  const env = environment({ hash: '#/session/session-a/turn/86', panels: [], activePanelId: null })
+  const seat = dom.document.createElement('div')
+  seat.setAttribute('data-chat-turn', '86')
+  let scrolled = 0
+  seat.scrollIntoView = () => { scrolled += 1 }
+  dom.body.appendChild(seat)
+  const revealed = []
+  const env = environment({
+    hash: '#/session/session-a/turn/86',
+    panels: [], activePanelId: null,
+    sessions: { list: { getSnapshot: () => ({ phase: 'ready', ids: [], byId: {} }), subscribe() { return () => {} } }, binding: () => undefined },
+  })
   env.window.document = dom.document
   env.window.getComputedStyle = () => ({ position: 'static' })
   env.window.MutationObserver = dom.FakeObserver
   env.api.list('session-a')
   open(env)
-  // Then the conversation is opened, once, with one diagnostic about the position
-  assert.deepEqual(env.opened, ['session-a'])
-  assert.deepEqual(env.warnings, [])
+  env.api.view('session-a')
+  for (let i = 0; i < 3; i++) triggerObservers(dom)
+  // Then the conversation is opened, and the turn's seat is scrolled to
+  assert.ok(env.opened.includes('session-a'), JSON.stringify(env.opened))
+  assert.ok(scrolled >= 1, `expected the turn to be scrolled to, saw ${scrolled}`)
   assert.equal(env.location.hash, '#/session/session-a/turn/86')
 })
 
@@ -1594,15 +1610,15 @@ function addConversationViews(dom, ids, activeIndex = 0) {
   })
   dom.body.appendChild(row)
   // The views are contributed through the conversation.view slot, with an id and an order.
-  const viewEntries = ids.map((id, index) => ({ options: { id, order: index * 10 } }))
-  return { row, tabs, viewEntries }
+    const uiConversation = { views: { entries: () => ids.map(id => ({ target: id })) } }
+    return { row, tabs, uiConversation }
 }
 
 test('which conversation view is showing is named in the address bar', () => {
   // Given a conversation showing its second view (the trajectory)
   const dom = fakeDom([])
-  const { viewEntries } = addConversationViews(dom, ['chat', 'trajectory', 'tool-todo-history'], 1)
-  const env = environment({ panels: [], activePanelId: null, viewEntries })
+  const { uiConversation } = addConversationViews(dom, ['chat', 'trajectory', 'tool-todo-history'], 1)
+  const env = environment({ panels: [], activePanelId: null, uiConversation })
   env.window.document = dom.document
   env.window.getComputedStyle = () => ({ position: 'static' })
   env.window.MutationObserver = dom.FakeObserver
@@ -1616,8 +1632,8 @@ test('which conversation view is showing is named in the address bar', () => {
 test('the default conversation view keeps the short route', () => {
   // Given a conversation showing its first (default) view
   const dom = fakeDom([])
-  const { viewEntries } = addConversationViews(dom, ['chat', 'trajectory'], 0)
-  const env = environment({ panels: [], activePanelId: null, viewEntries })
+  const { uiConversation } = addConversationViews(dom, ['chat', 'trajectory'], 0)
+  const env = environment({ panels: [], activePanelId: null, uiConversation })
   env.window.document = dom.document
   env.window.getComputedStyle = () => ({ position: 'static' })
   env.window.MutationObserver = dom.FakeObserver
@@ -1631,8 +1647,8 @@ test('the default conversation view keeps the short route', () => {
 test('a conversation view link switches that conversation to that view', () => {
   // Given a link naming a view
   const dom = fakeDom([])
-  const { tabs, viewEntries } = addConversationViews(dom, ['chat', 'trajectory', 'tool-todo-history'], 0)
-  const env = environment({ hash: '#/session/session-a/view/tool-todo-history', panels: [], activePanelId: null, viewEntries })
+  const { tabs, uiConversation } = addConversationViews(dom, ['chat', 'trajectory', 'tool-todo-history'], 0)
+  const env = environment({ hash: '#/session/session-a/view/tool-todo-history', panels: [], activePanelId: null, uiConversation })
   env.window.document = dom.document
   env.window.getComputedStyle = () => ({ position: 'static' })
   env.window.MutationObserver = dom.FakeObserver
