@@ -1835,3 +1835,58 @@ test('a pane link drives the session path with the session first', () => {
   assert.equal(calls[0].session, 'session-a')
   assert.equal(calls[0].kind, 'files')
 })
+
+test('a tab with no readable id still names the pane by its label', () => {
+  // Given a right bar whose tab carries no address-shaped id, only a visible name
+  const dom = fakeDom([])
+  const root = dom.document.createElement('div')
+  root.setAttribute('data-sidebar-right-session', 'session-a')
+  const strip = dom.document.createElement('div')
+  strip.setAttribute('data-dockkit-strip-tabs', 'strip-1')
+  const tab = dom.document.createElement('div')
+  tab.setAttribute('role', 'tab')
+  tab.setAttribute('aria-selected', 'true')
+  tab.textContent = 'Workspace files'
+  strip.appendChild(tab)
+  root.appendChild(strip)
+  dom.body.appendChild(root)
+  const env = environment({ panels: [], activePanelId: null, sidebarRightTabs: { getSnapshot: () => ({ activeTabId: undefined }) } })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // Then the route carries the name it can read — better than saying nothing
+  assert.equal(env.location.hash, '#/session/session-a/pane/Workspace%20files')
+})
+
+test('the diagnostic names the tab shape when no source can name it', () => {
+  // Given a right bar with a tab whose attributes this build cannot interpret
+  const dom = fakeDom([])
+  const root = dom.document.createElement('div')
+  root.setAttribute('data-sidebar-right-session', 'session-a')
+  const strip = dom.document.createElement('div')
+  strip.setAttribute('data-dockkit-strip-tabs', 'strip-1')
+  const tab = dom.document.createElement('div')
+  tab.setAttribute('role', 'tab')
+  tab.setAttribute('aria-selected', 'true')
+  tab.setAttribute('data-mystery', 'wat')
+  strip.appendChild(tab)
+  root.appendChild(strip)
+  dom.body.appendChild(root)
+  const warnings = []
+  const env = environment({ panels: [], activePanelId: null, sidebarRightTabs: { getSnapshot: () => ({ activeTabId: undefined }) } })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  const original = env.window.document
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  triggerObservers(dom)
+  // Then one diagnostic was emitted, naming the tab's own attributes
+  const notes = env.warnings.filter(w => w.includes('cannot read the active one'))
+  assert.equal(notes.length, 1)
+  assert.ok(notes[0].includes('data-mystery'), notes[0])
+})
