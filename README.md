@@ -54,6 +54,7 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 - **只动 fragment**：路径与查询串从不改写（启动 `?token=…` 能活下来）。
 - **唯一写者**：本插件拥有 fragment，请**不要**和别的写 fragment 的插件同时启用（例如 `dsh-session-url`），两者会互相覆盖。
 - **只用 `replaceState`**：浏览面板不污染后退栈。
+- **轨迹里的每一行都有自己的链接** ✓：`#/session/<id>/row/<类>/<作用域>/<id>`（例：`row/tool/call/call_ce3a…`、`row/assistant/80/32` = 第 80 轮第 32 项 ✓；有工作区时跟在会话 id 之后 ✓）。身份来自视图自己发的 **`data-trajectory-row-key`** ✓（值是 `<类>%00<作用域>%00<id>` ✓，我把它拆成可读路径 ✓）；你家 Trajectory Plus 发的是 **`data-dshts-turn`**（轮号 ✓）→ 那种行按轮次写（`turn/<n>` ✓）。点一行就反映进地址栏 ✓（**纯被动**：不 preventDefault ✓）。粘贴行链接会打开那个对话并**尽力滚到那一行** ✓ —— 视图是虚拟化的 ✓，**没渲染出来的行不会被假装滚到** ✗（不会骗你 ✓）。
 - **会话视图（对话 / 轨迹 / 轨迹plus …）也进地址栏** ✓：`#/session/<id>/view/<viewId>`（有工作区时是 `#/workspace/<名>/session/<id>/view/<viewId>` ✓）。**视图 id 是真的 id** ✓（来自槽位 `conversation.view` 的 `id` 字段 ✓，按 `order` 排序后与头部页签一一对应 ✓）：实测本机是 `chat` / `trajectory` / **`surface`**（Trajectory Plus ✓）/ **`plus2`**（Trajectory Plus 2 ✓）。默认视图（第一个 ✓）**不写进链接** ✓，所以普通对话链接保持短 ✓。**粘贴视图链接会真的切过去** ✓（与其它覆盖层不同：这是链接存在的意义 ✓）。
 - **工作区是"它住在哪"，所以写在链接最前面** ✓：`#/workspace/<工作区名>/session/<会话id>`（侧栏本身就是这个形状 ✓）。工作区名是**给眼睛看的** ✓ —— 决定打开哪个会话的永远是会话 id ✓，所以**名字过期/写错也照样打开对的会话** ✓（地址栏随后自己纠正成真实工作区 ✓）。读不到工作区行（没有侧栏 / 树里没有）就**不猜** ✓，退回 `#/session/<id>` ✓。
 - **作用域由视图决定，不靠猜**：主面板是应用级界面（列的是本机插件，不是某个对话），所以它的链接不带会话 id。
