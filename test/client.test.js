@@ -1341,6 +1341,20 @@ function addSettingsSurface(dom, { withOverlay = true, sections = ['General', 'M
       nav.appendChild(item)
     }
     overlay.appendChild(nav)
+    // A section may own tabs; the platform marks the current one with aria-selected.
+    const tabRow = dom.document.createElement('div')
+    for (const [index, label] of ['Usage', 'Plans', 'Token Bank'].entries()) {
+      const tab = dom.document.createElement('button')
+      tab.setAttribute('role', 'tab')
+      tab.setAttribute('aria-selected', index === 0 ? 'true' : 'false')
+      tab.textContent = label
+      tab.click = () => {
+        for (const sibling of tabRow.children) sibling.setAttribute('aria-selected', 'false')
+        tab.setAttribute('aria-selected', 'true')
+      }
+      tabRow.appendChild(tab)
+    }
+    overlay.appendChild(tabRow)
     return overlay
   }
   if (withOverlay) dom.body.appendChild(build())
@@ -1354,9 +1368,16 @@ function addSettingsSurface(dom, { withOverlay = true, sections = ['General', 'M
   /** The section button for a label, wherever the overlay currently is. */
   const section = label => {
     const overlay = dom.document.querySelector('[data-dsh-surface="settings"]')
-    return [...overlay.querySelectorAll('button')].find(candidate => candidate.textContent === label)
+    return [...overlay.querySelectorAll('button')]
+      .filter(candidate => candidate.closest('nav') !== null)
+      .find(candidate => candidate.textContent === label)
   }
-  return { button, section, open: () => dom.body.appendChild(build()) }
+  /** The tab button for a label inside the section. */
+  const tab = label => {
+    const overlay = dom.document.querySelector('[data-dsh-surface="settings"]')
+    return [...overlay.querySelectorAll('[role="tab"]')].find(candidate => candidate.textContent === label)
+  }
+  return { button, section, tab, open: () => dom.body.appendChild(build()) }
 }
 
 test('an open settings overlay is named in the address bar', () => {
@@ -1368,8 +1389,8 @@ test('an open settings overlay is named in the address bar', () => {
   env.window.getComputedStyle = () => ({ position: 'static' })
   env.window.MutationObserver = dom.FakeObserver
   open(env)
-  // Then the address bar names the overlay and the section it is showing
-  assert.equal(env.location.hash, '#/settings/General')
+  // Then the address bar names the overlay, its section and that section's tab
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/General/Usage')
 })
 
 test('a settings link opens the overlay through the official entry', () => {
@@ -1387,7 +1408,7 @@ test('a settings link opens the overlay through the official entry', () => {
   // Then the official entry was used, and the address bar keeps the canonical form
   assert.equal(clicks, 1)
   triggerObservers(dom)
-  assert.equal(env.location.hash, '#/settings/General')
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/General/Usage')
   assert.deepEqual(env.warnings, [])
 })
 
@@ -1401,8 +1422,8 @@ test('an open settings section is named by its label', () => {
   env.window.getComputedStyle = () => ({ position: 'static' })
   env.window.MutationObserver = dom.FakeObserver
   open(env)
-  // Then the address bar names that section, by the label the user reads
-  assert.equal(env.location.hash, '#/settings/Models')
+  // Then the address bar names that section, by the label the user reads, plus its tab
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/Models/Usage')
 })
 
 test('a settings section link opens settings on that section', () => {
@@ -1420,8 +1441,58 @@ test('a settings section link opens settings on that section', () => {
   assert.ok(target !== undefined)
   const original = target.click
   target.click = () => { clicks += 1; original() }
+  // The real GUI keeps sending DOM notifications, and each one is another chance to drive.
   triggerObservers(dom)
-  // Then that section is current and the address bar keeps the canonical label
+  triggerObservers(dom)
+  // Then that section is current and the address bar refines to the tab it shows
   assert.equal(clicks, 1)
-  assert.equal(env.location.hash, '#/settings/Models')
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/Models/Usage')
+})
+
+test('the tab a settings section is showing is named in the address bar', () => {
+  // Given the settings overlay on one section, showing its second tab
+  const dom = fakeDom([])
+  const { tab } = addSettingsSurface(dom)
+  tab('Token Bank').click()
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the address bar carries section and tab
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/General/Token Bank')
+})
+
+test('a settings tab link opens that section and that tab', () => {
+  // Given a link naming a section and one of its tabs
+  const dom = fakeDom([])
+  const { section, tab } = addSettingsSurface(dom, { withOverlay: false })
+  const env = environment({ hash: '#/settings/Models/Token Bank', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Drive to completion the way the real GUI does: each notification is another attempt.
+  for (let i = 0; i < 3; i++) triggerObservers(dom)
+  // Then that section is current and that tab is the selected one
+  assert.equal(section('Models').getAttribute('aria-current'), 'true')
+  assert.equal(tab('Token Bank').getAttribute('aria-selected'), 'true')
+  assert.equal(tab('Usage').getAttribute('aria-selected'), 'false')
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/Models/Token Bank')
+  assert.deepEqual(env.warnings, [])
+})
+
+test('a section link is satisfied by the same section on another tab', () => {
+  // Given a link naming a section while that section shows a different tab
+  const dom = fakeDom([])
+  const { tab } = addSettingsSurface(dom)
+  tab('Plans').click()
+  const env = environment({ hash: '#/settings/General', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the link has landed and the address bar refines to the tab actually shown
+  assert.deepEqual(env.warnings, [])
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/General/Plans')
 })
