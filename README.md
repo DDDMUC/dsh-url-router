@@ -64,11 +64,11 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 
 ### 已知限制
 
-- **轮次链接是"位置"不是"界面"**：点某一轮，地址栏记下 `#/session/<id>/turn/<n>` ✓；但**粘贴它只会打开那个对话，不会滚到那一轮** ✗ —— 官方把"跳到某轮"（`scrollToTurn` / `JUMP_PAGE_OPTIONS`）留在 chat 包**内部**，没有对外接缝 ✗，逐页翻也不可靠 ✗（实测「Load earlier」按钮在两个会话上都没加载出更早的轮次 ✗）。要真跳转，需要官方开一个服务或槽位 ✓。
+- **轮次链接是"位置"，而且现在真能跳** ✓：点某一轮，地址栏记下 `#/session/<id>/turn/<n>` ✓；**粘贴它会打开那个对话、把历史翻页回那一轮、再滚到它** ✓（真机实测：贴 `/turn/118` → 窗口变成 118→121、目标在视口 true、最顶可见正是 118 ✓）。用的是**官方已有公开契约** ✓：`sessions.retainScope(id, source)` 拿到会话控制器 ✓ → `session.projections.faceOf('turnOutline')` 读到那一轮的 `seq` ✓ → `session.loadThrough(seq)` 翻页回去 ✓（完事 `reference.release()` ✓）→ 再按官方视口同款选择器 `[data-chat-turn]:not([hidden])` 滚到它 ✓。座位高度/相交都读不到时**不算到位** ✓，宁可继续重试也不假报 ✗。
 - **右栏 pane 已闭环** ✓：`#/session/<id>/pane/<kind>` 与 `#/panel/<面板>/pane/<kind>` ✓（真机验证：贴链接开出对应页签 ✓、地址栏跟着切换 ✓）。页签种类由右栏自己注册 ✓（实测 7 种：`guide` / `subagentchat` / `changes-review` / `plan` / `files` / `text` / `terminal` ✓）。
 - **设置面板已纳入**：`#/settings` ✓、**`#/settings/<分区>`** ✓、**`#/settings/<分区>/<页签>`** ✓（页签靠标准 `role="tab"` + `aria-selected` ✓，分区内任何页签都吃这一套 ✓）。分区**没有稳定 id** ✗（实测：导航项上只有 `aria-current="true"` ✓，父链是 `nav` ✓，右侧内容区一个 `data-*` 都没有 ✗；官方内部的 `openSection(id)` 也不对外 ✗）→ 所以**分区的身份就是它的显示名** ✓：反映读「`aria-current="true"` 且属于 `nav`」的那个按钮的**标签文字** ✓，驱动按标签点 ✓。含义：**换语言或官方改文案后，旧的分区链接会失效** ✗（但你重新点一次，地址栏就会写出新链接 ✓ —— 自洽、不过期 ✓）。裸 `#/settings` 只要面板开着就算落地 ✓，随后地址栏自动升级为具体分区 ✓。
 - **设置页分区暂未纳入（旧描述）**：设置包没有"打开某个分区"的接缝（它们是 keyed list slot），只能等它自己发布类似契约。
-- **会话内的轮次与行锚点已纳入** ✓：`#/session/<id>/turn/<n>` ✓（只做反映 ✓）、`#/session/<id>/row/<类>/<作用域>/<id>` ✓（反映 + 尽力滚动 ✓，含可证明时的轮次归属 ✓）。**跳转仍然做不到** ✗（官方把 `scrollToTurn` 留在包内部 ✓，已向官方提 <https://github.com/deepseek-ai/deepseek-harness/discussions/9339> ✓）。
+- **会话内的轮次与行锚点已纳入** ✓：`#/session/<id>/turn/<n>` ✓（**反映 + 翻页 + 滚动 ✓ 全链路已闭环**）、`#/session/<id>/row/<类>/<作用域>/<id>` ✓（反映 + 尽力滚动 ✓，含可证明时的轮次归属 ✓）。轮次跳转用的是官方公开 API ✓，**没有等待任何新接缝** ✓（`uiChat.scrollToTurn` 那条请求已降级为锦上添花 ✓，讨论见 <https://github.com/deepseek-ai/deepseek-harness/discussions/9339> ✓）。
 - **技能中心 / SSH 的内部页**：需要它们各自发布"当前实体 id + 按 id 打开"的契约（任务看板就是这么做的）。
 - **和别的 fragment 写者互斥**（例如写 `#msg=` 的"跳到消息"插件）：一个 URL 只有一个 fragment ✓，两个写者只能轮流拥有 ✗。本插件**不假装合并** ✓ —— 它认出外来 fragment ✓、**绝不覆盖** ✓，并明确说"只能启用一个写者" ✓（而不是互相静默擦掉对方的链接 ✗）。
 - 链接**同名不跨机**：会话 id 只在同一台机器、同一个 `DSH_HOME` 下有意义。
@@ -123,4 +123,4 @@ Conversation rows and both plugin-list groups carry a transparent full-row ancho
 
 ### Limits
 
-Still open: jumping to a named turn (the official chat keeps `scrollToTurn` inside its own package — asked for a seam in discussion #9339), the right-hand panes (wired, but the right bar starts empty in this composition so they are not verified end to end yet), and Skill Center / SSH inner pages, which need their own "publish the current id + accept an open request" contract the way the task board did. Session links are meaningful on the same machine and `DSH_HOME` only.
+Still open: Skill Center / SSH inner pages, which need their own "publish the current id + accept an open request" contract the way the task board did. Session links are meaningful on the same machine and `DSH_HOME` only.

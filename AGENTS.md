@@ -44,7 +44,7 @@
 - **设置链接按"前缀"落地** ✓：裸 → 分区 → 页签逐级 ✓；命名了页签的链接必须看到那个页签 ✓，只命名到分区的链接被该分区任意页签满足 ✓。
 - **`aria-current` 必须在 DOM 观察者的 `attributeFilter` 里** ✓：切换分区只改这一个属性 ✓，漏了它地址栏就永远停在第一次看到的分区（历史 bug ✓）。
 - **裸 `#/settings` 立即可落地**（`sameRoute` 的定向例外 ✓）：分区是那个表面的细化、不是另一个表面 ✓；但**两个命名分区之间仍然算不同** ✓（否则分区链接就不驱动了 ✓）。
-- **轮次锚点是"位置"，只做反映**：点击聊天里的一轮（`[data-chat-turn]` ✓）把轮号写进地址栏 ✓；**绝不 preventDefault** ✗、**绝不碰交互元素**（button/a/input/textarea/select/[role=button]/[contenteditable] ✓ —— 逐个 `closest`，不用逗号选择器 ✓，因为小 DOM 桩可能不支持 ✓）。驱动侧只开会话 + 一条说明 ✓（官方没有对外跳转接缝 ✗）。
+- **轮次锚点是"位置"，反映 + 可跳转**：点击聊天里的一轮（`[data-chat-turn]` ✓）把轮号写进地址栏 ✓；**绝不 preventDefault** ✗、**绝不碰交互元素**（button/a/input/textarea/select/[role=button]/[contenteditable] ✓ —— 逐个 `closest`，不用逗号选择器 ✓，因为小 DOM 桩可能不支持 ✓）。驱动侧**全链路已闭环** ✓：开会话 → 翻页回那一轮 → 滚到它（契约见下 ✓）。会话还没上屏时**只开会话、不 drive** ✗（没有座位可滚 = 静默无操作 ✗，实测过 ✗）。
 - **右栏根上有 `data-sidebar-right-session="<会话 id>"`** ✓（右栏是**按会话**的 ✓，实测与路由里的会话 id 一致 ✓）；**页签只读 `[data-dockkit-strip-tabs]`** ✓ —— 空态那层也有 `data-dockkit-pane="pane1"` ✗，读"任意 pane-active"会把空态当页签 ✗（历史 bug ✓）。
 - **官方源码级契约（读 dsh-web-frontend / sidebar-right 得到）** ✓：页签是 `role="tab"` ✓，活动的是 `aria-selected="true"` ✓，身份在 **`data-dockkit-tab`** ✓ —— 而**该值就是 `pageAddress(kind)` = `sidebar://<kind>[/<uuid>]`** ✓（`multiple: true` 的 kind 才拼 uuid ✓），所以 **kind 直接含在 tabId 里** ✓（`kindOfTabId()` 解 ✓）。`data-dockkit-pane` 的值是 **paneId**（`pane1` ✗），而且**主区也有同一套属性** ✗ → 读必须**限定在 `[data-sidebar-right-session]` 根内** ✓（否则读成主区的 pane ✗）。
 - **控制器的两条路** ✓：`openTab(kind)` 要求**已挂载**（`require()` 抛 `no session surface is mounted` ✗）；**`openTabIn(sessionId, kind, options)`** 才是显式带会话的公开路径 ✓（**参数顺序是 session 优先** ✗ 传反就成了"查一个叫 files 的会话" ✗ 历史 bug ✓）。`actionsFor(sessionId)` = `adopted.get(sessionId)?.store.actions` ✓，而 **adopt 发生在右栏被呈现时** ✓（`layout.openRightbar(track, fullscreen)` ✓，track = `session` | `panel` ✓）→ 所以驱动**先呈现右栏** ✓ 再 `openTabIn` ✓。
@@ -68,7 +68,16 @@
 - **路由体检（#7）**：一个 `window.__dshUrlRouter.report()` ✓（无 UI 依赖 ✓，绝不抛错 ✓），列出：当前 canonical 路由 ✓、正在落地的链接与重试次数 ✓、每一层界面**读到多少个钩子** ✓（会话行 / 工作区行 / 视图 tab 与 id 列表 / 轮次 / 轨迹行 / 轮次边界 / 插件行 / 官方项 / 设置覆盖层与分区 / 任务看板 / 右栏 pane ✓）、已发出的告警 ✓、以及被"不碰"的段位 ✓。
 - **对外接缝（#8）**：`ctx.urlRouter`（服务）或同名窗口事件 ✓，让第三方把"当前界面"写成链接 ✓，并由本插件**统一裁决** fragment 所有权 ✓ —— 这同时也是 #4 的真正解法 ✓。
 - **面板内层页面（#5）**：技能中心 / SSH 需要各自发契约 ✓（`data-*` + 接受同名窗口事件 ✓）；任务看板是现成先例 ✓，可作为 PR 往上游推 ✓（需要各仓 owner 同意 ✓）。
-- **跳转到某一轮（官方）**：已发讨论 <https://github.com/deepseek-ai/deepseek-harness/discussions/9339> ✓（请求一个 `scrollToTurn(turn)` 服务或 `dsh-chat-scroll-to-turn` 窗口事件 ✓；退路是驱动 rail 刻度点击 ✗ 虚拟化下不可靠 ✓）。
+- **跳转到某一轮：已用官方公开契约打通，无需新接缝** ✓。链路：
+  `faces.sessions.retainScope(sessionId, SRC)` → `reference.binding.session` →
+  `session.projections.faceOf('turnOutline').getSnapshot()`（条目 `{turn, seq, prompt, response}` ✓ → 取目标轮的 `seq` ✓）→
+  `session.loadThrough(seq)` → `reference.release()` → 再 `scrollIntoView` ✓。
+  - **`sessions` 必须在 `inject` 里声明** ✗ 否则拿不到 ✗（与 `uiConversation` 同一规矩 ✓）；**`probeFaces` 必须把它读进 faces** ✗（曾漏读 → 真机 `retainScope` 恒 undefined → 白烧六轮 ✗）。
+  - **根插件拿不到 `sessions.binding()`** ✗（实测 undefined ✓）：会话作用域的控制器只能靠 `retainScope` 物化 ✓。
+  - **座位/视口判据用官方同款选择器** ✓：`[data-chat-turn]:not([hidden])` ✓，并自己排除 `closest('[hidden]')` ✓ —— **虚拟列表会把未载入的轮次也渲染进 DOM** ✗（只查"存在"会假报就位 ✗，实测 ✗）。
+  - **`sameRoute` 对 turn 的落地判据 = 目标真在视口** ✓（`routeKey` 比法会让 canonical 一带上 turn 就判等 → 链接永不驱动 ✗，死锁实测 ✓）。
+  - **drive 会重入 reconcile** ✓，重入可能已 `dropLink()` → **守门后立刻 `const link = linked`，体内一律用快照** ✗（否则 `reading 'inner'` ✓，实测 ✗）。
+  - `loadThrough` 是**公开 slot 契约** ✓（`session-controller` 1885 注释 "page backwards until the window covers seq" ✓）。官方 `uiChat.scrollToTurn(sessionId, turn)` 那条请求（讨论 #9339 ✓）**已降级为锦上添花** ✓（不阻塞 ✓）。
 
 ## 已实现：#4 外部 fragment 共存 / #7 路由体检（2026-10-11）
 
