@@ -1,6 +1,6 @@
 {
   "name": "dsh-url-router",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH Web GUI plugin: one URL for every surface — the address bar names what is on screen (a conversation or a main panel) and a link opens it. Single owner of the URL fragment; browser half only, no dependencies, no telemetry.",
   "repository": {
     "type": "git",
