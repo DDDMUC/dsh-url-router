@@ -16,8 +16,15 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
+
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
+
+import { createRequire } from 'node:module'
+
+/** The package version, so a test can keep the router's own version honest. */
+const require_ = createRequire(import.meta.url)
+const packageVersion = require_('../package.json').version
 
 const BUNDLE_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'client.js')
 const BUNDLE_SOURCE = readFileSync(BUNDLE_PATH, 'utf8')
@@ -1890,4 +1897,85 @@ test('the diagnostic names the tab shape when no source can name it', () => {
   const notes = env.warnings.filter(w => w.includes('cannot read the active one'))
   assert.equal(notes.length, 1)
   assert.ok(notes[0].includes('data-mystery'), notes[0])
+})
+
+// --- #4: another writer owns the fragment -------------------------------------
+
+test('a foreign fragment is named once and never overwritten', () => {
+  // Given another plugin wrote its own form into the fragment (a jump-to-message writer)
+  const dom = fakeDom([])
+  const env = environment({ hash: '#msg=abc', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // Then it is named, with the reason, and the address bar is left exactly as it was
+  assert.equal(env.location.hash, '#msg=abc')
+  const notes = env.warnings.filter(w => w.includes('#msg=abc'))
+  assert.equal(notes.length, 1)
+  assert.ok(notes[0].includes('another plugin') || notes[0].includes('one fragment'), notes[0])
+})
+
+test('a foreign fragment survives a view change that would otherwise write', () => {
+  // Given the foreign fragment is on screen and the user opens a conversation
+  const dom = fakeDom([])
+  const env = environment({ hash: '#msg=abc', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  triggerObservers(dom)
+  // Then the router stays quiet rather than taking the fragment over
+  assert.equal(env.location.hash, '#msg=abc')
+  assert.ok(env.warnings.some(w => w.includes('#msg=abc')))
+})
+
+// --- #7: the route health report ----------------------------------------------
+
+test('the report names every layer it read and everything it refused', () => {
+  // Given a page with one conversation row, one workspace row and a mismatched fragment
+  const dom = fakeDom(['session:session-a'])
+  const workspace = dom.document.createElement('div')
+  workspace.setAttribute('data-row-key', 'workspace:ws-1')
+  workspace.textContent = 'Default'
+  dom.body.appendChild(workspace)
+  const env = environment({ hash: '#msg=zzz', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  const report = env.window.__dshUrlRouter.report()
+  // Then it carries the version, the fragment it refused, and the layers it counted
+  assert.equal(report.version, packageVersion)
+  assert.equal(report.foreignFragment, '#msg=zzz')
+  assert.equal(report.surfaces.conversationRows, 1)
+  assert.equal(report.surfaces.workspaceRows, 1)
+  // The view is still described honestly even though the router refused to write it.
+  // Compared through JSON: the report's objects come from the browser-side context, whose
+  // prototypes are not this realm's.
+  assert.equal(JSON.stringify(report.canonical), JSON.stringify({ kind: 'panel', id: 'plugins', inner: [] }))
+  assert.equal(JSON.stringify(report.warnings), JSON.stringify(['foreign fragment: #msg=zzz']))
+  // And it says nothing was written
+  assert.equal(env.location.hash, '#msg=zzz')
+})
+
+test('the report is reachable without a DOM and never throws', () => {
+  // Given the thinnest possible page
+  const dom = fakeDom([])
+  const env = environment({ panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the seam answers with a whole report, not an error
+  const report = env.window.__dshUrlRouter.report()
+  assert.equal(typeof report, 'object')
+  assert.ok(Array.isArray(report.ignoredKinds))
+  assert.ok(Array.isArray(report.warnings))
 })
