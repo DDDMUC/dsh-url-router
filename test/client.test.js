@@ -220,6 +220,8 @@ function environment(options = {}) {
     },
     get(name) {
       if (name === 'layout') return options.layout === null ? undefined : layout
+      if (name === 'sidebarRightTabs') return options.sidebarRightTabs
+      if (name === 'sidebarRight') return options.sidebarRightTabs
       return undefined
     },
     slots,
@@ -240,7 +242,7 @@ test('the browser module advertises the services it needs', () => {
   // When its exports are inspected
   // Then apply and the injected service names are the documented ones
   assert.equal(typeof env.moduleExports.apply, 'function')
-  assert.equal([...env.moduleExports.inject].join(','), 'sessions,workspaces,uiWorkspace,slots')
+  assert.equal([...env.moduleExports.inject].join(','), 'sessions,workspaces,uiWorkspace,slots,sidebarRightTabs')
 })
 
 test('a panel link selects that panel and keeps the address bar canonical', () => {
@@ -519,6 +521,13 @@ function fakeDom(initialKeys) {
       this.listeners.set(type, set)
     }
     fire(type, event) { for (const handler of [...(this.listeners.get(type) ?? [])]) handler(event) }
+    /** Walk up to the nearest ancestor (or self) matching one selector. */
+    closest(selector) {
+      for (let node = this; node !== null && node !== undefined; node = node.parentElement ?? null) {
+        if (typeof node.matches === 'function' && node.matches(selector)) return node
+      }
+      return null
+    }
     matches(selector) {
       const rowKey = /^\[data-row-key\^="([^"]+)"\]$/.exec(selector)
       if (rowKey !== null) {
@@ -568,6 +577,19 @@ function fakeDom(initialKeys) {
     createElementNS: (_namespace, tag) => new Node(tag),
     querySelector: selector => body.descendants().find(node => node.matches(selector)) ?? null,
     querySelectorAll: selector => body.descendants().filter(node => node.matches(selector)),
+    listeners: new Map(),
+    addEventListener(type, handler) {
+      const set = this.listeners.get(type) ?? new Set()
+      set.add(handler)
+      this.listeners.set(type, set)
+    },
+    removeEventListener(type, handler) {
+      this.listeners.get(type)?.delete(handler)
+    },
+    /** Dispatch one event to the document listeners (the router's passive click listener). */
+    fire(type, event) {
+      for (const handler of [...(this.listeners.get(type) ?? [])]) handler(event)
+    },
   }
   const observers = []
   class FakeObserver {
@@ -1186,4 +1208,112 @@ test('selecting a linked panel aborts the navigation in flight first', () => {
   // Then the layout was asked to abort navigation before the panel was selected
   assert.equal(env.beginCalls.length, 1)
   assert.deepEqual(env.selected, ['plugins'])
+})
+
+/** A click event shaped like the ones the router listens for. */
+function clickOn(target, extra = {}) {
+  return { target, button: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...extra }
+}
+
+test('pointing at a turn names that turn in the address bar', () => {
+  // Given a conversation on screen whose chat nodes publish their turn
+  const dom = fakeDom([])
+  const turn = dom.document.createElement('div')
+  turn.setAttribute('data-chat-turn', '86')
+  dom.body.appendChild(turn)
+  const env = environment({ panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // When the user clicks inside that turn
+  dom.document.fire('click', clickOn(turn))
+  // Then the address bar names it, as a position inside that conversation
+  assert.equal(env.location.hash, '#/session/session-a/turn/86')
+})
+
+test('a click on a control inside a turn is left alone', () => {
+  // Given a turn whose node contains a button
+  const dom = fakeDom([])
+  const turn = dom.document.createElement('div')
+  turn.setAttribute('data-chat-turn', '86')
+  const button = dom.document.createElement('button')
+  turn.appendChild(button)
+  dom.body.appendChild(turn)
+  const env = environment({ panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  const before = env.location.hash
+  // When the click lands on the button
+  dom.document.fire('click', clickOn(button))
+  // Then the address bar is untouched: the chat keeps its own click
+  assert.equal(env.location.hash, before)
+})
+
+test('a turn link opens the conversation and says the turn is not scrolled to', () => {
+  // Given a link naming a turn
+  const dom = fakeDom([])
+  const env = environment({ hash: '#/session/session-a/turn/86', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  open(env)
+  // Then the conversation is opened, once, with one diagnostic about the position
+  assert.deepEqual(env.opened, ['session-a'])
+  assert.equal(env.warnings.filter(w => w.includes('turn 86')).length, 1)
+  assert.equal(env.location.hash, '#/session/session-a/turn/86')
+})
+
+test('the pane in front is named in the address bar', () => {
+  // Given the plugins panel is on screen with the right-hand pane showing "files"
+  const dom = fakeDom([])
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins', sidebarRightTabs: { getSnapshot: () => ({ activeTabId: 'files' }) } })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the address bar names both, the pane inside the panel
+  assert.equal(env.location.hash, '#/panel/plugins/pane/files')
+})
+
+test('a pane link opens that pane through the right-hand service', () => {
+  // Given a link naming the pane
+  const opened = []
+  const dom = fakeDom([])
+  const env = environment({
+    hash: '#/panel/plugins/pane/files',
+    panels: ['plugins'],
+    activePanelId: 'plugins',
+    sidebarRightTabs: { getSnapshot: () => ({ activeTabId: undefined }), openTab: kind => opened.push(kind) },
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the pane service was asked for that tab
+  assert.deepEqual(opened, ['files'])
+})
+
+test('a turn link pasted while running still explains itself', () => {
+  // Given the router running with a conversation on screen
+  const dom = fakeDom([])
+  const env = environment({ panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // When the user pastes a turn link (a hashchange is how that arrives)
+  env.api.navigate('#/session/session-a/turn/86')
+  // Then the position is named and the reason it does not scroll is said once
+  assert.equal(env.location.hash, '#/session/session-a/turn/86')
+  assert.equal(env.warnings.filter(w => w.includes('turn 86')).length, 1)
 })
