@@ -45,6 +45,8 @@
 - **`aria-current` 必须在 DOM 观察者的 `attributeFilter` 里** ✓：切换分区只改这一个属性 ✓，漏了它地址栏就永远停在第一次看到的分区（历史 bug ✓）。
 - **裸 `#/settings` 立即可落地**（`sameRoute` 的定向例外 ✓）：分区是那个表面的细化、不是另一个表面 ✓；但**两个命名分区之间仍然算不同** ✓（否则分区链接就不驱动了 ✓）。
 - **轮次锚点是"位置"，只做反映**：点击聊天里的一轮（`[data-chat-turn]` ✓）把轮号写进地址栏 ✓；**绝不 preventDefault** ✗、**绝不碰交互元素**（button/a/input/textarea/select/[role=button]/[contenteditable] ✓ —— 逐个 `closest`，不用逗号选择器 ✓，因为小 DOM 桩可能不支持 ✓）。驱动侧只开会话 + 一条说明 ✓（官方没有对外跳转接缝 ✗）。
+- **右栏根上有 `data-sidebar-right-session="<会话 id>"`** ✓（右栏是**按会话**的 ✓，实测与路由里的会话 id 一致 ✓）；**页签只读 `[data-dockkit-strip-tabs]`** ✓ —— 空态那层也有 `data-dockkit-pane="pane1"` ✗，读"任意 pane-active"会把空态当页签 ✗（历史 bug ✓）。
+- **驱动三级链** ✓：`sidebarRight.openTab(kind, { sessionId })` → `openTabIn(kind, sessionId)` → **guide 动作**（空态卡片背后那一步 ✓，`sidebarRightTabs.guideEntries` ✓）。**真机全部无效** ✗（零异常零诊断 ✓）→ 与 `uiConversation` 同一结论：**根插件拿到的是根控制器** ✗，会话内的那一个够不着 ✓ → 需要**会话作用域接缝** ✓。
 - **右栏有两个服务，别混** ✓（实测两个面）：**`sidebarRightTabs` = 注册表** ✓（`kinds` / `ids` / `entries` / `register` / `active` / `candidates` / `guide` ✓）；**`sidebarRight` = 控制器** ✓（`openTab(kind, options)` / `openTabIn` / `close` / `closeIn` / `toggleExpanded` / `isExpanded` / `active` / `split` / `focus` / `screen` ✓）。读活动页签：控制器 `active` 优先 ✓（可能是值或方法 ✓）→ 注册表 `active` ✓ → 再 DOM 兜底 ✓。开页签：**必须走控制器** ✓（调注册表**静默失败** ✗，历史 bug ✓）。**真机仍未打开** ✗（9 个 kind 全试、零异常 ✓）→ 疑似**根控制器 vs 会话内控制器**（与 `uiConversation` 同类 ✓），需要会话作用域接缝 ✓。`paneKinds()` 已备好（供体检/预校验 ✓），暂未接进认领路径 ✓。
 - **旧记录（仍在）**：DOM 兜底必须**只认真正属于右栏**的标记 ✓（`data-dockkit-pane-active` 是主区共用的 ✗，历史踩过 ✓）。该服务已加进 `inject` ✓ 与包声明的官方模块 id ✓。
 - **链接落地即交权**：视图一旦等于链接描述的界面，链接立刻失去权威（只留"还没落地"的窗口期）。否则用户在面板里继续点进去时，地址栏会被拽回链接那一层（真机踩过：点组件行后又被改回包详情）。
