@@ -30,6 +30,21 @@ dsh plugin --profile web add dsh-url-router
 Route kinds are owned by this plugin; a kind it does not know (`#/settings/…`) is
 **left alone** with a single diagnostic, so another router can own it later.
 
+## Row links
+
+Every conversation row in the sidebar is exposed as a **real link** — a transparent
+`<a href="#/session/<id>" target="_blank">` covering the row, so the browser's own link
+behavior applies with no custom menu:
+
+- **right-click** → the native menu (open link in new tab / copy link / save link as)
+- **middle click, Cmd/Ctrl+click** → a new tab, natively
+- **plain left click** → opens the conversation *here* (`preventDefault` + the official
+  navigation), so the address bar keeps using `replaceState` and no history entry is added
+- the row's own controls (⋯, buttons) are lifted above the overlay and keep working
+
+It supersedes the earlier `dsh-session-url` plugin: install one, not both (both write the
+fragment). The link shape `#/session/<id>` is identical, so existing links keep working.
+
 ## Rules it keeps
 
 - **Fragment only.** Path and query string are never touched (a launch `?token=…` survives).
@@ -50,6 +65,8 @@ Route kinds are owned by this plugin; a kind it does not know (`#/settings/…`)
 - Depends on the official client faces `ctx.layout.selectPanel` / `ctx.layout.panelInfo`
   and the session/workspace controllers. If their shape changes, the plugin disables
   itself with one diagnostic rather than touching official behavior.
+- Row links depend on the official row markup (`div[data-row-key="session:<id>"]`); if
+  that changes the plugin degrades to doing nothing rather than touching official rows.
 - Settings sections are **not** routed yet: the settings package exposes no
   "open section" seam (they are keyed list slots). Right-hand panes are openable
   (`ISidebarRight.openTab(kind)`) but not yet routed.
