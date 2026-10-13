@@ -228,7 +228,7 @@ function environment(options = {}) {
       disposers.push(fn())
     },
     get(name) {
-      if (name === 'layout') return options.layout === null ? undefined : layout
+      if (name === 'layout') return options.layout === null ? undefined : (options.layout ?? layout)
       if (name === 'sidebarRightTabs') return options.sidebarRightTabs
       if (name === 'sidebarRight') return options.sidebarRight ?? options.sidebarRightTabs
       return undefined
@@ -1838,8 +1838,9 @@ test('a pane link drives the session path with the session first', () => {
   open(env)
   env.api.view('session-a')
   for (let i = 0; i < 3; i++) triggerObservers(dom)
-  // Then the session comes first: openTabIn(sessionId, kind, options)
-  assert.equal(calls.length, 1)
+  // Then the session comes first: openTabIn(sessionId, kind, options). The link keeps
+  // retrying while the tab is not really open, so the first call is the contract.
+  assert.ok(calls.length >= 1, JSON.stringify(calls))
   assert.equal(calls[0].session, 'session-a')
   assert.equal(calls[0].kind, 'files')
 })
@@ -1978,4 +1979,123 @@ test('the report is reachable without a DOM and never throws', () => {
   assert.equal(typeof report, 'object')
   assert.ok(Array.isArray(report.ignoredKinds))
   assert.ok(Array.isArray(report.warnings))
+})
+
+// --- pane: the registry decides the kind --------------------------------------
+
+/** A right bar whose strip shows one tab, with a registry that names the kinds. */
+function paneEnv(dom, tabLabel, rows, options = {}) {
+  const right = dom.document.createElement('div')
+  right.setAttribute('data-sidebar-right-session', 'session-a')
+  const strip = dom.document.createElement('div')
+  strip.setAttribute('data-dockkit-strip-tabs', 'strip-1')
+  const tab = dom.document.createElement('div')
+  tab.setAttribute('role', 'tab')
+  tab.setAttribute('aria-selected', 'true')
+  tab.textContent = tabLabel
+  strip.appendChild(tab)
+  right.appendChild(strip)
+  dom.body.appendChild(right)
+  const registry = { entries: () => rows }
+  return environment({ panels: [], activePanelId: null, sidebarRightTabs: registry, ...options, ...options.environment })
+}
+
+test('the active tab resolves to its registry kind, not its label', () => {
+  // Given a tab labelled "Files" and a registry that names that label as kind `files`
+  const dom = fakeDom([])
+  const env = paneEnv(dom, 'Files', [
+    { kind: 'guide', title: () => 'Start' },
+    { kind: 'files', title: () => 'Files' },
+    { kind: 'terminal', title: () => 'Terminal', multiple: true },
+  ])
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // Then the address bar carries the kind
+  assert.equal(env.location.hash, '#/session/session-a/pane/files')
+})
+
+test('a pane link for a kind the bar does not know is refused, with the kinds named', () => {
+  // Given a registry that knows three kinds and a link naming a fourth
+  const dom = fakeDom([])
+  const env = paneEnv(dom, 'Files', [
+    { kind: 'files', title: () => 'Files' },
+    { kind: 'terminal', title: () => 'Terminal', multiple: true },
+  ], { hash: '#/session/session-a/pane/nope' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  open(env)
+  env.api.view('session-a')
+  for (let i = 0; i < 3; i++) triggerObservers(dom)
+  // Then it is refused, the kinds it does know are listed, and nothing was opened
+  const note = env.warnings.find(w => w.includes('no pane type "nope"'))
+  assert.ok(note !== undefined, JSON.stringify(env.warnings))
+  assert.ok(note.includes('files') && note.includes('terminal'), note)
+})
+
+test('a pane link drives the session path with the session first and the kind after', () => {
+  // Given a link naming a registered kind, and a controller that records how it is called
+  const calls = []
+  const dom = fakeDom([])
+  const env = paneEnv(dom, 'Start', [
+    { kind: 'files', title: () => 'Files' },
+    { kind: 'terminal', title: () => 'Terminal', multiple: true },
+  ], {
+    hash: '#/session/session-a/pane/terminal',
+    sidebarRight: {
+      isExpanded: () => false,
+      toggleExpanded: () => { calls.push('toggleExpanded') },
+      openTabIn: (session, kind, options) => calls.push({ call: 'openTabIn', session, kind, options }),
+    },
+    layout: { openRightbar: track => calls.push({ call: 'openRightbar', track }) },
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // The conversation is already on screen, the way it is when a link is pasted
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  for (let i = 0; i < 3; i++) triggerObservers(dom)
+  // Then each attempt is one whole sequence: present the bar, open the tab into this
+  // session, and expand it. A link that has not landed retries, so the first three are the
+  // contract and the rest are the same sequence again.
+  assert.ok(calls.length >= 3, JSON.stringify(calls))
+  // Compared through JSON: the recorded calls come from the browser-side realm.
+  assert.equal(JSON.stringify(calls[0]), JSON.stringify({ call: 'openRightbar', track: 'session' }))
+  assert.equal(JSON.stringify(calls[1]), JSON.stringify({ call: 'openTabIn', session: 'session-a', kind: 'terminal', options: {} }))
+  assert.equal(calls[2], 'toggleExpanded')
+})
+
+test('a pane that may be opened more than once is driven once, not once per retry', () => {
+  // Given a kind the bar may open repeatedly (`multiple: true`, the terminal) and a link naming it
+  const calls = []
+  const dom = fakeDom([])
+  const right = dom.document.createElement('div')
+  right.setAttribute('data-sidebar-right-session', 'session-a')
+  const strip = dom.document.createElement('div')
+  strip.setAttribute('data-dockkit-strip-tabs', 'strip-1')
+  right.appendChild(strip)
+  dom.body.appendChild(right)
+  const env = environment({
+    hash: '#/session/session-a/pane/terminal',
+    panels: [], activePanelId: null,
+    sidebarRightTabs: { entries: () => [{ kind: 'terminal', title: () => 'Terminal', multiple: true }] },
+    sidebarRight: { isExpanded: () => true, openTabIn: (session, kind) => calls.push({ session, kind }) },
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  for (let i = 0; i < 4; i++) triggerObservers(dom)
+  // Then exactly one tab was opened, however many retries happened
+  assert.equal(calls.length, 1, JSON.stringify(calls))
+  assert.equal(calls[0].kind, 'terminal')
 })

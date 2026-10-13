@@ -84,3 +84,20 @@
 - **实测顺带发现（下次可用）** ✓：`paneKinds()` 走 `entries()` 能拿到**全量 7 个 kind**：
   `guide / subagentchat / changes-review / plan / files / text / terminal` ✓
   —— 上一轮"根作用域只有 guide"的结论**下早了** ✗（那次读的是 `kinds` getter ✗）。⇒ **右栏 pane 的驱动很可能真能做** ✓，用这些 kind 值 ✓。
+
+## 右栏 pane 驱动已闭环（2026-10-11，真机验证 ✓）
+
+**用官方 7 个真实 kind 做完了驱动** ✓（`guide / subagentchat / changes-review / plan / files / text / terminal` ✓）。
+
+**真机实测** ✓：贴 `#/session/<id>/pane/terminal` → 右栏展开 ✓、**只开一个 Terminal** ✓、地址栏写 `…/pane/terminal` ✓；再贴 `…/pane/files` → 开出 Files ✓、地址栏跟着切 ✓；**零异常零诊断** ✓。
+
+**本轮修掉的 5 个真 bug** ✓：
+1. **`sameRoute` 把 pane 当"细化"** ✗：`pane/terminal` vs 屏幕上 `pane/Start` 被判"已落地" → 链接被丢、驱动不跑 ✓。且它用 `routeKey` 精确比 ✗（含 kind：`session` vs `workspace` ✗ 永不相等 ✓）→ 改为**只比 pane kind** ✓（形状是装饰 ✓，跟工作区别名一样 ✓）。
+2. **canonical 的 workspace 分支先 return** ✗ → pane 永远读不到 ✓（workspace 吞掉 pane ✓，与"视图被工作区吞掉"同一类 ✓）→ pane 读取**提前** ✓，两种形状都带 ✓。
+3. **`openRightbar` 薄面丢参数** ✗（`() => openRightbar()` ✓）→ track 永远 undefined ✗ → 改成转发 ✓。
+4. **`multiple: true` 的 kind 每轮重试多开一个页签** ✗（实测开出 40 个 ✗）→ 加护栏：**同一 claim 只驱动一次** ✓（`paneOpenedFor` 放机器级作用域 ✓，放 reconcile 内每次都会重建 ✗）。
+5. **kind 白名单** ✓：驱动前用注册表校验 ✓，未知 kind 明确拒绝并列出已知 kind ✓（不留"挂着什么都不做"的链接 ✓）。
+
+**读侧同步升级** ✓：注册表条目实测有 **`{kind, title(): () => label, multiple, guide, patterns, priority}`** ✓ → 用 `title()` 把页签**标签映射回 kind** ✓，于是地址栏写 `pane/files` ✓（而不是 `pane/Files` ✗）。
+
+**坑（老熟人 ✓）**：诊断用 `console.info` 而 harness 的 console 只有 `warn` ✗ → 抛错被 `guard` 吞 → `canonical` 中断 → 地址栏写空 ✗（**测试里别用 console.info** ✓）。
