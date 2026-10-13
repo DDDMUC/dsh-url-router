@@ -13,6 +13,7 @@
 
 - **本插件是地址栏的唯一写者**。任何其它写 fragment 的插件都不得同时启用（`dsh-session-url` 就是这样一个插件）。
 - **段位**：`#/session/<id>`（会话，`uiWorkspace.openSession`）、`#/panel/<panelId>`（主面板，`ctx.layout.selectPanel`）。输入侧接受复数与百分号编码，规范化成单数形式；**不认识的段位一律不碰**，只留一条诊断。
+- **轮次归属必须可证明** ✓：助手行自带轮次 ✓；工具行只有调用 id ✗ → 靠 `[data-turn-start]`（值 = 轮号 ✓）反推 ✓，**但只有"行之前和之后各有一个已渲染边界"时才写** ✓（`turn/<n>/row/…` ✓）。虚拟化下边界常常只渲染一侧 ✗ → 那就**不写轮次** ✓（绝不猜 ✗）。假 DOM 的 `compareDocumentPosition` 用"根的后代序号"实现 ✓（不要用 `ownerDocument` ✗，假件没有 ✓）。
 - **行级路线**：`#/session/<id>/row/<类>/<作用域>/<id>` ✓（身份 = `data-trajectory-row-key` ✓，值是 `%00` 分隔的三元组 ✓ → 拆成路径段 ✓）；家系视图的 `data-dshts-turn`（轮号 ✓）按 `turn/<n>` 写 ✓。**点击处理器必须"行优先"** ✓：轨迹行本身就是按钮 ✓，而处理器开头的 `closest([data-chat-turn])` 会直接把非轮次元素挡掉 ✓（历史 bug ✓）。反映**纯被动** ✓（不 preventDefault ✓）。驱动 = 尽力 `scrollIntoView` ✓（虚拟化未渲染的行**不假装** ✓，返回 false ✓）。canonical 里位置的优先级 **行 > 视图 > 轮次** ✓。
 - **会话视图路线**：`#/session/<id>/view/<viewId>`（有工作区时跟在会话 id 之后 ✓）。**`uiConversation` 服务在根插件里读不到** ✗（实测 `ctx.get('uiConversation')` = undefined ✓，它是会话作用域内的 ✓）—— **视图 id 从槽位读** ✓：`ctx.slots.entries('conversation.view')` 的 `options.id` ✓，按 `options.order` 排序 ✓（chat=0 / trajectory=10 / surface=20 / plus2=21 ✓）。头部页签容器是 **`[data-conversation-tabs]`** ✓、页签是 `button[role="tab"][aria-selected]` ✓（**没有 id 写在 DOM 里** ✗）→ **位置↔注册顺序** 对齐出 id ✓。默认视图（第一个 ✓）不写进链接 ✓。
 - **视图驱动必须排在工作区/会话分支之前** ✓，否则那两条会先 `return` 把它吞掉 ✓（历史 bug ✓）；且**不能被 `source === 'hash'` 挡住** ✓（粘贴视图链接就是要切过去 ✓）。

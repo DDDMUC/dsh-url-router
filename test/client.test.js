@@ -563,6 +563,15 @@ function fakeDom(initialKeys) {
     }
     querySelector(selector) { return this.descendants().find(node => node.matches(selector)) ?? null }
     querySelectorAll(selector) { return this.descendants().filter(node => node.matches(selector)) }
+    compareDocumentPosition(other) {
+      const rootOf = node => { let top = node; while (top.parentElement) top = top.parentElement; return top }
+      const order = rootOf(this).descendants()
+      const mine = order.indexOf(this)
+      const theirs = order.indexOf(other)
+      if (mine < 0 || theirs < 0 || mine === theirs) return 0
+      // FOLLOWING (4) means the argument follows this node; PRECEDING (2) the opposite.
+      return mine < theirs ? 4 : 2
+    }
   }
   const body = new Node('body')
   const head = new Node('head')
@@ -1696,4 +1705,61 @@ test('a row link opens its conversation and scrolls to the row when it is render
   assert.deepEqual(env.opened, ['session-a'])
   assert.ok(scrolled >= 1, `expected the row to be scrolled to, saw ${scrolled}`)
   assert.equal(env.location.hash, '#/session/session-a/row/tool/call/call_ce3a')
+})
+
+test('a tool row whose turn is provable says the turn in its link', () => {
+  // Given a trajectory window with two turn boundaries and a tool row between them
+  const dom = fakeDom([])
+  const start = dom.document.createElement('tr')
+  start.setAttribute('data-turn-start', '82')
+  dom.body.appendChild(start)
+  const row = dom.document.createElement('tr')
+  row.setAttribute('data-trajectory-row-key', 'tool%00call%00call_ce3a')
+  dom.body.appendChild(row)
+  const end = dom.document.createElement('tr')
+  end.setAttribute('data-turn-start', '83')
+  dom.body.appendChild(end)
+  const env = openConversationPage(dom)
+  // When the row is clicked
+  fireRowClick(dom, row)
+  // Then the link reads turn first, then the row
+  assert.equal(env.location.hash, '#/session/session-a/turn/82/row/tool/call/call_ce3a')
+})
+
+test('a tool row with no provable turn leaves the turn out of its link', () => {
+  // Given the same kind of row but only one boundary rendered (the window's edge)
+  const dom = fakeDom([])
+  const start = dom.document.createElement('tr')
+  start.setAttribute('data-turn-start', '82')
+  dom.body.appendChild(start)
+  const row = dom.document.createElement('tr')
+  row.setAttribute('data-trajectory-row-key', 'tool%00call%00call_ce3a')
+  dom.body.appendChild(row)
+  const env = openConversationPage(dom)
+  // When the row is clicked
+  fireRowClick(dom, row)
+  // Then nothing is guessed: the route has no turn
+  assert.equal(env.location.hash, '#/session/session-a/row/tool/call/call_ce3a')
+})
+
+test('a turn+row link opens the conversation and reveals the row', () => {
+  // Given a link that names both a turn and a row, with that row rendered
+  const dom = fakeDom([])
+  let scrolled = 0
+  const start = dom.document.createElement('tr')
+  start.setAttribute('data-turn-start', '82')
+  dom.body.appendChild(start)
+  addTrajectoryRow(dom, 'data-trajectory-row-key', 'tool%00call%00call_ce3a', { scrollIntoView: () => { scrolled += 1 } })
+  const env = environment({ hash: '#/session/session-a/turn/82/row/tool/call/call_ce3a', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  open(env)
+  env.api.view('session-a')
+  for (let i = 0; i < 3; i++) triggerObservers(dom)
+  // Then the conversation is open and the row was scrolled to
+  assert.deepEqual(env.opened, ['session-a'])
+  assert.ok(scrolled >= 1, `expected a scroll, saw ${scrolled}`)
+  assert.equal(env.location.hash, '#/session/session-a/turn/82/row/tool/call/call_ce3a')
 })
