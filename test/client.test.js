@@ -223,7 +223,7 @@ function environment(options = {}) {
     get(name) {
       if (name === 'layout') return options.layout === null ? undefined : layout
       if (name === 'sidebarRightTabs') return options.sidebarRightTabs
-      if (name === 'sidebarRight') return options.sidebarRightTabs
+      if (name === 'sidebarRight') return options.sidebarRight ?? options.sidebarRightTabs
       return undefined
     },
     slots,
@@ -1762,4 +1762,76 @@ test('a turn+row link opens the conversation and reveals the row', () => {
   assert.deepEqual(env.opened, ['session-a'])
   assert.ok(scrolled >= 1, `expected a scroll, saw ${scrolled}`)
   assert.equal(env.location.hash, '#/session/session-a/turn/82/row/tool/call/call_ce3a')
+})
+
+/** The right bar's own tab strip: `role="tab"` with the tab id in `data-dockkit-tab`. */
+function addRightBarTab(dom, tabId, active) {
+  const root = dom.document.createElement('div')
+  root.setAttribute('data-sidebar-right-session', 'session-a')
+  const strip = dom.document.createElement('div')
+  strip.setAttribute('data-dockkit-strip-tabs', 'strip-1')
+  const tab = dom.document.createElement('div')
+  tab.setAttribute('role', 'tab')
+  tab.setAttribute('aria-selected', active ? 'true' : 'false')
+  tab.setAttribute('data-dockkit-tab', tabId)
+  strip.appendChild(tab)
+  root.appendChild(strip)
+  dom.body.appendChild(root)
+  return { root, strip, tab }
+}
+
+test('the active tab element names the pane in the address bar', () => {
+  // Given a right bar whose strip holds one tab, and the service says nothing
+  const dom = fakeDom([])
+  addRightBarTab(dom, 'sidebar://files', true)
+  const env = environment({ panels: [], activePanelId: null, sidebarRightTabs: { getSnapshot: () => ({ activeTabId: undefined }) } })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // Then the tab's own id carries the kind, so the route says it
+  assert.equal(env.location.hash, '#/session/session-a/pane/files')
+})
+
+test('a tab id with a uuid still names the kind it belongs to', () => {
+  // Given a kind that may be opened more than once, so the bar appends a uuid
+  const dom = fakeDom([])
+  addRightBarTab(dom, 'sidebar://terminal/2f9c1a7e-2b3f-4d51-9f0e-7a1c6d5b4e88', true)
+  const env = environment({ panels: [], activePanelId: null, sidebarRightTabs: { getSnapshot: () => ({ activeTabId: undefined }) } })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // Then the route names the kind, not the uuid
+  assert.equal(env.location.hash, '#/session/session-a/pane/terminal')
+})
+
+test('a pane link drives the session path with the session first', () => {
+  // Given a link naming a pane, and a controller that records how it is called
+  const calls = []
+  const dom = fakeDom([])
+  const { root } = addRightBarTab(dom, 'sidebar://files', false)
+  root.setAttribute('data-sidebar-right-session', 'session-a')
+  const env = environment({
+    hash: '#/session/session-a/pane/files',
+    panels: [],
+    activePanelId: null,
+    sidebarRightTabs: { getSnapshot: () => ({ activeTabId: undefined }) },
+    sidebarRight: { openTabIn: (session, kind, options) => calls.push({ session, kind, options }) },
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  open(env)
+  env.api.view('session-a')
+  for (let i = 0; i < 3; i++) triggerObservers(dom)
+  // Then the session comes first: openTabIn(sessionId, kind, options)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].session, 'session-a')
+  assert.equal(calls[0].kind, 'files')
 })
