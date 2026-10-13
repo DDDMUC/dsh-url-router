@@ -70,11 +70,16 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 - **设置页分区暂未纳入（旧描述）**：设置包没有"打开某个分区"的接缝（它们是 keyed list slot），只能等它自己发布类似契约。
 - **会话内的轮次与行锚点已纳入** ✓：`#/session/<id>/turn/<n>` ✓（只做反映 ✓）、`#/session/<id>/row/<类>/<作用域>/<id>` ✓（反映 + 尽力滚动 ✓，含可证明时的轮次归属 ✓）。**跳转仍然做不到** ✗（官方把 `scrollToTurn` 留在包内部 ✓，已向官方提 <https://github.com/deepseek-ai/deepseek-harness/discussions/9339> ✓）。
 - **技能中心 / SSH 的内部页**：需要它们各自发布"当前实体 id + 按 id 打开"的契约（任务看板就是这么做的）。
+- **和别的 fragment 写者互斥**（例如写 `#msg=` 的"跳到消息"插件）：一个 URL 只有一个 fragment ✓，两个写者只能轮流拥有 ✗。本插件**不假装合并** ✓ —— 它认出外来 fragment ✓、**绝不覆盖** ✓，并明确说"只能启用一个写者" ✓（而不是互相静默擦掉对方的链接 ✗）。
 - 链接**同名不跨机**：会话 id 只在同一台机器、同一个 `DSH_HOME` 下有意义。
 
 ### 开发
 
 手写 JS 直接进 `lib/`（无构建步骤），`npm test` 直接跑交付产物（35→45 条用例，`node --test`）。改之前请读 [AGENTS.md](AGENTS.md) 里的路由与行链接契约。
+
+### 排障
+
+浏览器 Console 里调用 `window.__dshUrlRouter.report()` ✓，它会列出：当前地址栏 ✓、本插件认为屏幕在哪个界面 ✓、正在落地的链接与重试次数 ✓、**每一层读到了多少个钩子** ✓、右栏 pane 的**真实 kind 列表** ✓、以及它**拒绝认领**的段位 ✓。它绝不出错、也不写任何东西 ✓。
 
 ## English
 
