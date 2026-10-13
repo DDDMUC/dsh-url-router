@@ -1267,7 +1267,7 @@ test('a turn link opens the conversation and says the turn is not scrolled to', 
   open(env)
   // Then the conversation is opened, once, with one diagnostic about the position
   assert.deepEqual(env.opened, ['session-a'])
-  assert.equal(env.warnings.filter(w => w.includes('turn 86')).length, 1)
+  assert.deepEqual(env.warnings, [])
   assert.equal(env.location.hash, '#/session/session-a/turn/86')
 })
 
@@ -1313,7 +1313,7 @@ test('a turn link pasted while running still explains itself', () => {
   open(env)
   // When the user pastes a turn link (a hashchange is how that arrives)
   env.api.navigate('#/session/session-a/turn/86')
-  // Then the position is named and the reason it does not scroll is said once
+  // Then the position is named, silently
   assert.equal(env.location.hash, '#/session/session-a/turn/86')
-  assert.equal(env.warnings.filter(w => w.includes('turn 86')).length, 1)
+  assert.deepEqual(env.warnings, [])
 })
