@@ -2183,3 +2183,92 @@ test('a turn that is not loaded yet is paged back through its seq, then the refe
   }
   assert.deepEqual(env.warnings, [])
 })
+
+/** Fire one DOM observer batch at every installed observer, exactly like the browser. */
+function notify(dom, records) {
+  for (const observer of dom.observers) observer.callback(records)
+}
+
+/** Count the queries one selector costs while `run` executes. */
+function countQueries(document, selector, run) {
+  const original = document.querySelectorAll
+  let count = 0
+  document.querySelectorAll = function patched(value) {
+    if (value === selector) count += 1
+    return original.call(this, value)
+  }
+  try { run() } finally { document.querySelectorAll = original }
+  return count
+}
+
+test('a notification that cannot carry a row does not scan the sidebar', () => {
+  // Given a linked list with one more conversation rendered but not yet announced
+  const { dom } = openWithDom(['session:session-abc'])
+  const late = dom.document.createElement('div')
+  late.setAttribute('data-row-key', 'session:session-late')
+  dom.body.appendChild(late)
+  // When a batch arrives that only carries text, as streaming and hover produce all day
+  notify(dom, [{ type: 'childList', addedNodes: [{ nodeType: 3 }], removedNodes: [] }])
+  // Then nothing was linked by it: that batch could not have carried a row
+  assert.equal(late.querySelector('[data-dsh-part="url-router-link"]'), null)
+  // And when a batch that does carry the row arrives, the row is linked
+  notify(dom, [{ type: 'childList', addedNodes: [late], removedNodes: [] }])
+  assert.equal(late.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-late')
+})
+
+test('a burst of notifications inside one frame collapses into one scan', () => {
+  // Given a page whose frames can be driven by hand
+  const { env, dom } = openWithDom(['session:session-abc'])
+  const frames = []
+  env.window.requestAnimationFrame = handler => { frames.push(handler); return frames.length }
+  const first = dom.document.createElement('div')
+  first.setAttribute('data-row-key', 'session:session-first')
+  const second = dom.document.createElement('div')
+  second.setAttribute('data-row-key', 'session:session-second')
+  dom.body.appendChild(first)
+  dom.body.appendChild(second)
+  // When three batches arrive before the frame runs
+  notify(dom, [{ type: 'childList', addedNodes: [first], removedNodes: [] }])
+  notify(dom, [{ type: 'childList', addedNodes: [second], removedNodes: [] }])
+  notify(dom, [{ type: 'childList', addedNodes: [second], removedNodes: [] }])
+  // Then the scan waited for the frame: nothing is linked and exactly one pass is queued
+  assert.equal(first.querySelector('[data-dsh-part="url-router-link"]'), null)
+  assert.equal(frames.length, 1, 'a burst must schedule exactly one scan')
+  // And when the frame runs, both rows are links
+  for (const frame of frames.splice(0)) frame()
+  assert.equal(first.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-first')
+  assert.equal(second.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-second')
+})
+
+test('one scan reads the workspace tree once, however many rows it links', () => {
+  // Given a page that announces N new conversation rows in one batch
+  const measure = rowCount => {
+    const { dom } = openWithDom(['session:session-abc'])
+    const added = []
+    for (let index = 0; index < rowCount; index += 1) {
+      const row = dom.document.createElement('div')
+      row.setAttribute('data-row-key', `session:session-new-${index}`)
+      dom.body.appendChild(row)
+      added.push(row)
+    }
+    return countQueries(dom.document, '[data-row-key]', () => {
+      notify(dom, [{ type: 'childList', addedNodes: added, removedNodes: [] }])
+    })
+  }
+  // Then announcing two rows costs no more tree walks than announcing one
+  assert.equal(measure(2) - measure(1), 0, 'workspace resolution must not scale with the row count')
+})
+
+test('a row whose anchor a re-render dropped is healed by the next scan', () => {
+  // Given a linked row from which the view dropped the plugin's anchor
+  const { dom } = openWithDom(['session:session-abc'])
+  const row = dom.rows[0]
+  row.querySelector('[data-dsh-part="url-router-link"]').remove()
+  // And a later batch that brings another row in, so a scan does run
+  const late = dom.document.createElement('div')
+  late.setAttribute('data-row-key', 'session:session-late')
+  dom.body.appendChild(late)
+  notify(dom, [{ type: 'childList', addedNodes: [late], removedNodes: [] }])
+  // Then the dropped anchor is back, not lost for the rest of the session
+  assert.equal(row.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-abc')
+})

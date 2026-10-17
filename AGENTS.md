@@ -41,6 +41,13 @@
 - 锚点 href 必须用本插件自己的编码函数 `routeHash('session', id)`，不要另写一套。
 - **找不到 DOM / 行属性不匹配一律静默 no-op**，绝不改官方行、绝不抛错；锚点点击里的导航也要 `try/catch`（官方导航可能抛）。
 - 行选择器或属性一旦改动，必须同步改 `test/client.test.js` 里的假 DOM 用例（假 DOM 已包含 `fakeDom`/`openWithDom`）。
+- **侧栏扫描有预算（2026-10-18 起，别改回去）**：
+  - 观察者是**每帧一次** ✓：一帧内到达的多个 mutation 批次合并成一次 `scan()` ✓（`requestAnimationFrame` ✓；没有 rAF 的最小 DOM / 假 DOM 走**同步**扫描 ✗ 不排队 ✓，否则测试与无帧环境会丢链接 ✓）。
+  - 批次**先过滤** ✓：只有可能带来行的节点才触发扫描 ✓（元素自身或子树里有 `[data-row-key^="session:"]` / `[data-plugin-item]` / `[data-plugin-package]` / panel slot ✓）；**纯文本批次直接跳过** ✓（流式回答、hover、工具输出整天在改 DOM ✗ 但它们永远不带行 ✓）。批次为空（拿不到记录：假 DOM、非标准 DOM）**按"要扫"处理** ✓ —— 宁可多扫一次也绝不漏行 ✓。
+  - 工作区归属**一趟遍历** ✓（`workspaceNamesOfRows()` 建 Map ✓），不是每行走一遍 `[data-row-key]` ✗（旧实现是 O(N²) ✓）。`workspaceNameOf(row)` 保留给单行调用（反映侧 ✓）。
+  - 已经挂着锚的行**跳过重挂** ✓，但判据是**行内 `querySelector` 找到锚** ✓，不是行上的 `data-dsh-url-router-host` ✗ —— 视图重渲染可能把锚点丢掉而属性还在 ✓，用属性判会**永久失去修复机会** ✓（有回归用例覆盖 ✓）。
+  - `panelRows()` 走 **`[data-slot="sidebar.panellist"]` 属性查询 + `closest('button')`** ✓，不再遍历全文档按钮再逐个查子树 ✗。
+  - 卸载时**取消排队的那一帧** ✓（`cancelAnimationFrame` ✓）。
 
 - **面板内部页是多段的**：`#/panel/plugins/<包>/<组件>`（每段单独 `encodeURIComponent`，所以原生的 `/` 一定是层级分隔）。钩子分**两组**，不要以为一套通吃：**已安装组** `li[data-plugin-package]` → `[data-plugin-detail]` → `li[data-plugin-row="<kind>:<rowId>"]` → `[data-plugin-row-detail="<包>#<rowId>"]`；**官方组** `li[data-plugin-item="<id>"]` → `[data-plugin-item-detail="<id>"]`（实测：官方项页面**没有** `data-plugin-detail`）。驱动一个段位时先找包行、再找官方行。**钩子有两种拼写**（`#` 与 `:`），解析统一走 `splitRowHook()`，别自己 `split`。
 - **任务看板走它自己的契约**（由用户单仓 `dsh-task-board` 发布）：`#/panel/task-board/task/<任务id>` 与 `#/panel/task-board/new`。反映读 `data-dsh-taskboard-open-task` / `data-dsh-taskboard-new-task`；驱动派发同名窗口事件；**表单优先于任务详情**。
