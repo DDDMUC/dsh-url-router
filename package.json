@@ -1,6 +1,6 @@
 {
   "name": "dsh-url-router",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "DSH Web GUI 地址栏路由插件：每个界面都有自己的链接（会话 / 主面板 / 插件页与组件页 / 任务看板），整行即真链接，只写 fragment。",
   "repository": {
     "type": "git",
