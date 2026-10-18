@@ -1,0 +1,5 @@
+# 行尾统一：仓库里一律 LF。
+# 起因：Windows 工作树（core.autocrlf=true）是 CRLF，npm publish 直接打工作树，
+# 导致 0.3.2 的 lib/client.js 以 CRLF 发出（0.3.1 是 LF）。功能无影响，但不该分叉。
+# 加了这条之后：git 里是 LF，新检出/重检出的工作树也是 LF，打包自然就是 LF。
+* text=auto eol=lf
