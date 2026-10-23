@@ -2426,3 +2426,17 @@ test('the address bar says so when a link does not land', () => {
   env.api.advance(1000)
   assert.equal(bar.getAttribute('data-dsh-url-router-state'), 'idle')
 })
+
+test('a workspace-shaped conversation link also takes the column back from a panel', () => {
+  // Given a panel on screen, and a link in the shape the address bar itself writes
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.api.list('session-abc')
+  open(env)
+  assert.equal(env.location.hash, '#/panel/plugins')
+  // When that workspace-shaped link arrives
+  env.api.navigate('#/workspace/Some%20Project/session/session-abc')
+  // Then the panel stepped aside and the conversation opened
+  assert.ok(env.selected.includes(null), JSON.stringify(env.selected))
+  assert.ok(env.opened.includes('session-abc'), JSON.stringify(env.opened))
+  assert.equal(env.location.hash, '#/session/session-abc')
+})
