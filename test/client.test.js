@@ -2370,3 +2370,18 @@ test('a conversation link takes the main column back from an open panel', () => 
   // And the address bar names the conversation, not the panel it came from
   assert.equal(env.location.hash, '#/session/session-abc')
 })
+
+test('the address bar still drives when the hash already says what was typed', () => {
+  // Given a panel on screen while the address bar already names a conversation
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, panels: ['plugins'], activePanelId: 'plugins' })
+  env.api.list('session-abc')
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  env.api.selectPanel('plugins')
+  env.location.hash = '#/session/session-abc'
+  // When the reader presses Enter on that same text, which fires no hashchange
+  input.value = '#/session/session-abc'
+  input.fire('keydown', { key: 'Enter' })
+  // Then the link is still adopted: the panel steps aside and the conversation opens
+  assert.ok(env.selected.includes(null), JSON.stringify(env.selected))
+  assert.ok(env.opened.includes('session-abc'), JSON.stringify(env.opened))
+})
