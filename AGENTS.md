@@ -30,6 +30,7 @@
 - **工作区路线**：`#/workspace/<工作区名>/session/<会话id>`（侧栏形状 ✓）。工作区行是 `data-row-key="workspace:<uuid>"` ✓、**行文本就是工作区名** ✓（无 `data-workspace-*` ✗，实测 ✓）；会话所属工作区 = 树里**它之前最近的那个 workspace 行** ✓（`workspaceNameOf()` ✓，行锚点与反映共用 ✓）。名字是**装饰** ✓：`sameRoute` 对 workspace 路线只比**会话 id** ✓（名字过期也能落地 ✓）；读不到工作区行就退回 `#/session/<id>` ✓（不猜 ✓）。
 - **行锚点的 href 也要带工作区** ✓（右键"复制链接"直接给出带归属的链接 ✓）。
 - **作用域由视图决定，不靠猜**：主面板是应用级界面（列的是本机插件，不是某个对话），所以它的链接**不带**会话 id；只有会话级视图才写会话。
+- **会话链接必须先把挡在前面的主面板让开** ✓（2026-10-24 修）：主面板选中时 `canonical` 就是面板 ✓，直接 `openSession` 会让地址栏立刻被写回面板路由 ✗（桌面版地址栏实测：面板 → 对话「没反应」✓）。驱动会话 / 工作区 / 轮次 / 行这些路由前，先 `host.beginNavigation()` + `host.selectPanel(null)` ✓，落地后由 `canonical` 归位 ✓。用例：`a conversation link takes the main column back from an open panel` ✓。
 - **一个 boot 的权威窗口（8 秒）**：链接在窗口内压过两边各自的 localStorage 恢复，窗口过后视图重新拥有地址栏。
 - **绝不抛错**：官方 `selectPanel` 对未注册的面板 id 是**抛异常**的，所有宿主面调用都必须被容纳（`attempt`/`guard`），失败只留一条诊断并回落到屏幕上真实的视图。
 - 只用 `replaceState`；路径与查询串原样保留。

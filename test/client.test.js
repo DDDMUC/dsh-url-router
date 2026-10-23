@@ -2355,3 +2355,18 @@ test('disposal removes the desktop address bar and its stylesheet', () => {
   assert.equal(dom.body.querySelector('[data-dsh-part="url-router-address-bar"]'), null)
   assert.equal(dom.head.children.some(node => node.id === 'dsh-url-router-titlebar-style'), false)
 })
+
+test('a conversation link takes the main column back from an open panel', () => {
+  // Given a panel on screen in front of the conversation a link names
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.api.list('session-abc')
+  open(env)
+  assert.equal(env.location.hash, '#/panel/plugins')
+  // When a conversation link arrives, the way a pasted link does
+  env.api.navigate('#/session/session-abc')
+  // Then the panel was told to step aside, and the conversation was opened
+  assert.ok(env.selected.includes(null), JSON.stringify(env.selected))
+  assert.ok(env.opened.includes('session-abc'), JSON.stringify(env.opened))
+  // And the address bar names the conversation, not the panel it came from
+  assert.equal(env.location.hash, '#/session/session-abc')
+})
