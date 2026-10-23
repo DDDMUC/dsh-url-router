@@ -2440,3 +2440,29 @@ test('a workspace-shaped conversation link also takes the column back from a pan
   assert.ok(env.opened.includes('session-abc'), JSON.stringify(env.opened))
   assert.equal(env.location.hash, '#/session/session-abc')
 })
+
+test('the settings overlay is named under either marker an official build uses', () => {
+  // Given the settings overlay is up, under each marker an official build has shipped
+  for (const attribute of ['data-shortcut-modal', 'data-dsh-surface']) {
+    const dom = fakeDom(['session:session-abc'])
+    const overlay = dom.document.createElement('div')
+    overlay.setAttribute(attribute, 'settings')
+    const nav = dom.document.createElement('nav')
+    const section = dom.document.createElement('button')
+    section.setAttribute('aria-current', 'true')
+    section.textContent = '模型'
+    nav.appendChild(section)
+    overlay.appendChild(nav)
+    dom.body.appendChild(overlay)
+    const env = environment()
+    env.window.document = dom.document
+    env.window.getComputedStyle = () => ({ position: 'static' })
+    env.window.MutationObserver = dom.FakeObserver
+    env.api.list('session-abc')
+    env.api.view('session-abc')
+    // When the plugin applies
+    open(env)
+    // Then the address bar names the overlay and the section on screen
+    assert.equal(env.location.hash, '#/settings/%E6%A8%A1%E5%9E%8B', attribute)
+  }
+})
