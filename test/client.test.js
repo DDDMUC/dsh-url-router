@@ -2385,3 +2385,44 @@ test('the address bar still drives when the hash already says what was typed', (
   assert.ok(env.selected.includes(null), JSON.stringify(env.selected))
   assert.ok(env.opened.includes('session-abc'), JSON.stringify(env.opened))
 })
+
+test('the address bar shows the route in a readable form', () => {
+  // Given a sidebar whose workspace is named in Chinese, so its route is percent-encoded
+  const dom = fakeDom(['workspace:x', 'session:session-abc'])
+  dom.rows[0].textContent = '默认工作区'
+  dom.document.documentElement.setAttribute('data-windows-titlebar', '')
+  const env = environment()
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-abc')
+  env.api.view('session-abc')
+  // When the plugin applies
+  open(env)
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  // Then the address bar itself carries the encoded route ...
+  assert.equal(env.location.hash, '#/workspace/%E9%BB%98%E8%AE%A4%E5%B7%A5%E4%BD%9C%E5%8C%BA/session/session-abc')
+  // ... while the bar shows it decoded, so it reads instead of looking like mojibake
+  assert.equal(input.value, '#/workspace/默认工作区/session/session-abc')
+})
+
+test('the address bar says so when a link does not land', () => {
+  // Given a desktop window whose sidebar knows one conversation
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  env.api.list('session-abc')
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const input = bar.querySelector('input')
+  // When a link names a conversation this instance does not have
+  input.value = '#/session/session-0000dead'
+  input.fire('keydown', { key: 'Enter' })
+  // Then after the settle window and one retry the bar says it did not land
+  env.api.advance(1000)
+  env.api.advance(1000)
+  assert.equal(bar.getAttribute('data-dsh-url-router-state'), 'refused')
+  assert.match(input.value, /打不开/)
+  // And typing a link that does land clears it again
+  input.value = '#/session/session-abc'
+  input.fire('keydown', { key: 'Enter' })
+  env.api.advance(1000)
+  assert.equal(bar.getAttribute('data-dsh-url-router-state'), 'idle')
+})
