@@ -74,6 +74,17 @@
 - **面板行同样是链接**：`data-slot="sidebar.panellist"` 所在的那个 `<button>`（官方侧栏渲染的面板行）会挂上 `href="#/panel/<id>"` 的锚点。**行里没有 id**，id 只能从注册表取：`ctx.slots.entries('sidebar.panellist')` 的 `options.id` / `options.order` / `options.label`；label 可能是**函数**（按语言解析），所以优先按可访问名匹配、数量一致时按 order 对齐，匹配不上一律不碰。
 - **`slots` 必须留在 `inject` 里**：cordis 下读未声明的服务会抛错，而插件激活期的抛错会让整个插件 `failed`（真机事故：面板链接那次就是这么挂的——假 ctx 无条件给服务，单测抓不到，只有真机能抓）。其余可选面（如 `ctx.layout`）一律 `try/catch` 读取。
 
+## 桌面地址栏契约（2026-10-24 起，改之前先读）
+
+- **形态**：Windows 桌面版的标题栏是**页面里画的** ✓ —— preload（`app.asar` 的 `lib/preload-app.cjs`）跑 `syncWindowsAppearance()`：给 `<html>` 打 `data-windows-titlebar`、设 `--dsh-windows-titlebar-height: 40px`，并用 shadow DOM 画菜单条（宿主 `[data-windows-menu]`，`position:fixed; top:0; left:var(--dsh-windows-menu-start,48px); z-index:1100; -webkit-app-region:no-drag`）。⇒ 那条 strip 是**页面空间** ✓，插件可以往里画 ✓。
+- **门控**：只有 `documentElement.getAttribute('data-windows-titlebar') !== null` 时才画 ✓；Web 版与 macOS 上**一行都不执行** ✓（"并进 url-router 但不影响其它平台"的全部机制就是这个 ✓）。
+- **定位**：`left = 48 + 菜单宿主宽度 + 8` ✓（宽度用宿主 `getBoundingClientRect()` 量 ✓，**不要**读 shadow 内部 ✗）；`right = TITLEBAR_CAPTION_WIDTH = 138px` 是 Windows 窗口按钮宽度常量 ✓（改缩放/换系统可能要调 ✓）；高度一律走 CSS 变量 ✓，不要写死 40 ✓。
+- **交互**：`-webkit-app-region: no-drag` 必须留 ✓ —— strip 本身是拖拽区 ✗，去掉它输入框点不动 ✗。
+- **落地只写 hash** ✓：`window.location.hash = fragment` ✓，绝不自己调路由内部 ✗ —— 浏览器触发 `hashchange` ✓，落地就是"粘贴链接"那条已验证的路 ✓。
+- **反映靠 feed** ✓：`reflect()` 写完地址栏后 `publishRoute(wantedHash)` ✓，桌面栏 `subscribeRoute(show)` ✓。**别改成监听 `hashchange`** ✗ —— 本插件用 `replaceState` 写地址栏 ✗、**不触发** hashchange ✗，改了就变成"框里永远是旧的" ✗。
+- **假 DOM 不支持 `#id` 选择器** ✗ → 地址栏带 `data-dsh-part="url-router-address-bar"` ✓，测试用属性选择器 ✓（行锚点当年同理 ✓）。
+- **验收**：布局可在 Web 版上用 `document.documentElement.setAttribute('data-windows-titlebar','')` + 那个 CSS 变量预演 ✓（同一套 CSS ✓），但 `dsh-app://` 下的 `replaceState` / `hashchange` 行为**只能真机确认** ✓。
+
 ## 跨机开发日志
 
 改动记录在私有库 [DDDMUC/repo-devlogs](https://github.com/DDDMUC/repo-devlogs) 的 **`dsh-url-router/`** 文件夹（`HANDOFF.md` 最新一轮在最上面；macOS 端写 `WORKLOG-macos.md`，条目以 `[macOS]` 开头）。按该库规矩，每条先写 `**运行环境**`（设备 / 应用 / 服务商与模型），再写做了什么、动了哪些文件、怎么验证、遗留问题。

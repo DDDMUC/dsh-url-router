@@ -51,6 +51,15 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 - **中键、Cmd/Ctrl + 单击** → 原生新标签页
 - **左键单击** → 在本页打开（`preventDefault` 后调官方导航，不新增历史记录）
 
+### 桌面版的地址栏
+
+DSH 桌面版（Windows）的标题栏是**画在网页里的**：preload 给 `<html>` 打上 `data-windows-titlebar`、给出 `--dsh-windows-titlebar-height`，菜单条本身是页面里的一个 shadow DOM 固定元素（`[data-windows-menu]`）。那条 strip 里的空白是**页面空间**，而桌面版**自己没有地址栏** —— 于是本插件把地址栏放在那儿：
+
+- 只在 `html[data-windows-titlebar]` 存在时出现 ✓（Web 版与 macOS 上什么都不画 ✓）。
+- 位置：紧跟 shell 自己的菜单条右侧 ✓、右端避开窗口按钮 ✓；高度取 `--dsh-windows-titlebar-height` ✓；`-webkit-app-region: no-drag` 保证能点 ✓。
+- 输入什么 ✓：任何 `#/…` 路由（会话 / 工作区 / 视图 / 轮次 / 行 / 面板 / 设置三层 / 右栏 pane）、**裸会话 id**、或**整条链接**（只取它的 fragment）✓；回车写 hash → 浏览器触发 `hashchange` → 落地走的就是"粘贴链接"那条已验证的路 ✓。
+- 它同时是**反映** ✓：本插件每次写地址栏都会同步进这个框 ✓，所以它显示的就是"现在在哪" ✓。Escape 还原 ✓；认不出的文本不动地址栏 ✓。
+
 ### 它守的规矩
 
 - **只动 fragment**：路径与查询串从不改写（启动 `?token=…` 能活下来）。
@@ -115,6 +124,15 @@ A kind it does not know is left alone with a single diagnostic (a fragment has e
 ### Every row is a real link
 
 Conversation rows and both plugin-list groups carry a transparent full-row anchor: right-click gives the native menu, middle/Cmd-click opens a native new tab, and a plain left click navigates in place without adding a history entry.
+
+### The desktop address bar
+
+The Windows desktop window draws its own title bar **inside the page**: the preload marks `<html data-windows-titlebar>` and publishes `--dsh-windows-titlebar-height`, and its menu is a fixed shadow-DOM element in the page (`[data-windows-menu]`). That strip is page space, and the desktop window has **no address bar of its own** — so this plugin puts one there:
+
+- Drawn only when `html[data-windows-titlebar]` is present (nothing at all on the web app or macOS).
+- Placed right after the shell's own menu and before the window buttons, at `--dsh-windows-titlebar-height`, with `-webkit-app-region: no-drag` so it stays clickable.
+- Accepts any `#/…` route, a bare conversation id, or a whole link (only its fragment is used); Enter writes the hash, the browser fires `hashchange`, and the link lands through the very same path a pasted link takes.
+- It also **reflects**: every write this plugin makes to the address bar is mirrored into the box, so it always names what is on screen. Escape restores it; text that names no route is refused.
 
 ### Rules it keeps
 

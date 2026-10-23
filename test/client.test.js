@@ -2272,3 +2272,86 @@ test('a row whose anchor a re-render dropped is healed by the next scan', () => 
   // Then the dropped anchor is back, not lost for the rest of the session
   assert.equal(row.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-abc')
 })
+
+/** Apply the plugin against a page that claims to be the Windows desktop window. */
+function openWithTitlebar(keys, options = {}) {
+  const dom = fakeDom(keys)
+  dom.document.documentElement.setAttribute('data-windows-titlebar', '')
+  if (options.menuWidth !== undefined) {
+    const menu = dom.document.createElement('div')
+    menu.setAttribute('data-windows-menu', '')
+    menu.getBoundingClientRect = () => ({ width: options.menuWidth })
+    dom.body.appendChild(menu)
+  }
+  const env = environment(options)
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  const panels = (options.rowLabels ?? []).map(label => addPanelRow(dom, label))
+  open(env)
+  return { env, dom, panels }
+}
+
+test('the desktop window gets an address bar, and a plain page does not', () => {
+  // Given a page without the shell's title bar marker
+  const plain = openWithDom(['session:session-abc'])
+  // Then nothing is drawn: there is no strip to draw into
+  assert.equal(plain.dom.body.querySelector('[data-dsh-part="url-router-address-bar"]'), null)
+  // Given the same page with the marker the Windows shell sets, and its menu
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  // Then the bar sits in the strip: after the menu, before the window buttons
+  assert.ok(bar !== null, 'the desktop strip must carry the address bar')
+  assert.ok(bar.querySelector('input') !== null, 'the bar is one input')
+  assert.equal(bar.style.left, '176px')
+  assert.equal(bar.style.right, '138px')
+  // And exactly one stylesheet was injected for it
+  assert.equal(dom.head.children.filter(node => node.id === 'dsh-url-router-titlebar-style').length, 1)
+})
+
+test('the address bar opens what is typed into it', () => {
+  // Given a desktop window with its address bar
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  // When a route is typed and Enter pressed
+  input.value = '#/panel/plugins'
+  input.fire('keydown', { key: 'Enter' })
+  assert.equal(env.location.hash, '#/panel/plugins')
+  // And a conversation id on its own opens that conversation
+  input.value = 'session-1234abcd'
+  input.fire('keydown', { key: 'Enter' })
+  assert.equal(env.location.hash, '#/session/session-1234abcd')
+  // And a whole link contributes only its fragment
+  input.value = 'http://127.0.0.1:3080/?token=x#/settings'
+  input.fire('keydown', { key: 'Enter' })
+  assert.equal(env.location.hash, '#/settings')
+  // And Escape puts back what is on screen
+  input.value = 'half typed'
+  input.fire('keydown', { key: 'Escape' })
+  assert.equal(input.value, '#/settings')
+  // And text that names nothing leaves the address bar where it was
+  input.value = 'not a route'
+  input.fire('keydown', { key: 'Enter' })
+  assert.equal(env.location.hash, '#/settings')
+})
+
+test('the address bar names the view the router just wrote', () => {
+  // Given a desktop window whose view then names a conversation
+  const { env, dom } = openWithTitlebar(['session:session-view'], { menuWidth: 120 })
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  env.api.list('session-view')
+  env.api.view('session-view')
+  // Then the router wrote the route, and the bar says the same thing
+  assert.equal(env.location.hash, '#/session/session-view')
+  assert.equal(input.value, '#/session/session-view')
+})
+
+test('disposal removes the desktop address bar and its stylesheet', () => {
+  // Given a linked desktop window
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  // When the plugin is disposed
+  for (const dispose of env.disposers) dispose()
+  // Then nothing of the bar is left in the page
+  assert.equal(dom.body.querySelector('[data-dsh-part="url-router-address-bar"]'), null)
+  assert.equal(dom.head.children.some(node => node.id === 'dsh-url-router-titlebar-style'), false)
+})
