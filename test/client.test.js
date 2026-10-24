@@ -157,6 +157,14 @@ function environment(options = {}) {
         this.detail = init?.detail
       }
     },
+    KeyboardEvent: class {
+      constructor(type, init) {
+        this.type = type
+        this.key = init?.key ?? ''
+        this.bubbles = init?.bubbles ?? false
+        this.cancelable = init?.cancelable ?? false
+      }
+    },
     dispatchEvent(event) {
       dispatched.push(event)
       return true
@@ -638,6 +646,11 @@ if (notHidden !== null) {
     /** Dispatch one event to the document listeners (the router's passive click listener). */
     fire(type, event) {
       for (const handler of [...(this.listeners.get(type) ?? [])]) handler(event)
+    },
+    /** The document is an event target too: the modal layer listens for keydown here. */
+    dispatchEvent(event) {
+      this.fire(event.type, event)
+      return true
     },
   }
   const observers = []
@@ -1603,6 +1616,31 @@ test('a workspace link opens the conversation it names, whatever the name says',
   // Then the conversation is opened: the name is what the link shows, not what it drives
   assert.deepEqual(env.opened, ['session-b'])
   // And the address bar settles on the workspace that really holds it
+  triggerObservers(dom)
+  assert.equal(decodeURIComponent(env.location.hash), '#/workspace/Default Project/session/session-b')
+  assert.deepEqual(env.warnings, [])
+})
+
+test('a conversation link takes the settings overlay out of the way', () => {
+  // Given the settings overlay up over the main column and a link naming a conversation
+  const dom = fakeDom([])
+  addWorkspaceTree(dom, 'Default Project', ['session-b'])
+  addSettingsSurface(dom)
+  // The official modal layer closes the topmost modal on a document-level Escape
+  // (measured in the shipped bundle: a capture `keydown` listener gated on `key === 'Escape'`).
+  dom.document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return
+    dom.document.querySelector('[data-dsh-surface="settings"]')?.remove()
+  })
+  const env = environment({ hash: '#/workspace/Default Project/session/session-b', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-b')
+  open(env)
+  // Then the conversation is opened *and* the overlay is gone, so the link can land
+  assert.deepEqual(env.opened, ['session-b'])
+  assert.equal(dom.document.querySelector('[data-dsh-surface="settings"]'), null)
   triggerObservers(dom)
   assert.equal(decodeURIComponent(env.location.hash), '#/workspace/Default Project/session/session-b')
   assert.deepEqual(env.warnings, [])

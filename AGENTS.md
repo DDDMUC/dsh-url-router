@@ -35,6 +35,7 @@
   ⇒ 现在的做法：`settingsOverlayOf()` **官方标记优先、皮肤中心标记兜底** ✓。**别把顺序改回去** ✗，也**别拿兜底那条当证据** —— 用户哪天关掉皮肤中心它就没了 ✓，官方那条永远在 ✓。
   **教训**：`data-dsh-*` 这类语义属性**先问是谁打的**再决定能不能当契约 ✗（扫官方包 0 命中是真的，错在当年把它当成官方契约写进路由）。判断依据是**真机 DOM** ✓，不是 grep ✓。
 - **会话链接必须先把挡在前面的主面板让开** ✓（2026-10-24 修）：主面板选中时 `canonical` 就是面板 ✓，直接 `openSession` 会让地址栏立刻被写回面板路由 ✗（桌面版地址栏实测：面板 → 对话「没反应」✓）。驱动会话 / 工作区 / 轮次 / 行这些路由前，先 `host.beginNavigation()` + `host.selectPanel(null)` ✓，落地后由 `canonical` 归位 ✓。用例：`a conversation link takes the main column back from an open panel` ✓。
+- **设置浮层挡的是一整列，不止面板** ✓（2026-10-24 桌面实测）：浮层在屏时 `canonical` 读到的就是 `#/settings/<分区>` ✓，所以**任何**非设置链接在它后面都落不了地，8 秒后按"视图没动"过期 ✗ —— 会话其实已经在浮层**背后**打开了 ✓，用户只看到"打不开"✗（截图：浮层停在「通用设置」✓，粘 `#/workspace/默认工作区/session/…` ✓，地址栏仍是 `#/settings/通用设置` ✓）。做法：`host.closeSettings()` 派发一次 document 级 `keydown` `Escape` ✓ —— 官方模态层注册的就是这个监听（bundle 实测 `document.addEventListener('keydown', h, true)` 且 `key === 'Escape'` 时关最上层 ✓），而 `closeTopModal` 走的那个模态栈注册表是 bundle 私有的 ✗ 外部拿不到 ⇒ **合成 Escape 是浏览器半侧唯一可用的关闭路径** ✓，也正是用户按 Esc 走的那条 ✓。**一条链接只按一次** ✓（`overlayDismissed` 随新链接复位 ✓）：每次 DOM 通知都派发会打扰正在操作页面的用户 ✓，代价只是"没关掉就得再粘一次" ✓。设置自己的链接**不关** ✓。用例：`a conversation link takes the settings overlay out of the way` ✓。
 - **一个 boot 的权威窗口（8 秒）**：链接在窗口内压过两边各自的 localStorage 恢复，窗口过后视图重新拥有地址栏。
 - **绝不抛错**：官方 `selectPanel` 对未注册的面板 id 是**抛异常**的，所有宿主面调用都必须被容纳（`attempt`/`guard`），失败只留一条诊断并回落到屏幕上真实的视图。
 - 只用 `replaceState`；路径与查询串原样保留。
