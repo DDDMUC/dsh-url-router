@@ -2441,8 +2441,9 @@ test('a workspace-shaped conversation link also takes the column back from a pan
   assert.equal(env.location.hash, '#/session/session-abc')
 })
 
-test('the settings overlay is named under either marker an official build uses', () => {
-  // Given the settings overlay is up, under each marker an official build has shipped
+test('the settings overlay is named under the official marker and still under the theming one', () => {
+  // Given the settings overlay is up, under the official marker or the one a third-party theming
+  // plugin stamps onto the same element (the latter is not a contract — official marker first)
   for (const attribute of ['data-shortcut-modal', 'data-dsh-surface']) {
     const dom = fakeDom(['session:session-abc'])
     const overlay = dom.document.createElement('div')

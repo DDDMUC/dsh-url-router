@@ -30,8 +30,10 @@
 - **工作区路线**：`#/workspace/<工作区名>/session/<会话id>`（侧栏形状 ✓）。工作区行是 `data-row-key="workspace:<uuid>"` ✓、**行文本就是工作区名** ✓（无 `data-workspace-*` ✗，实测 ✓）；会话所属工作区 = 树里**它之前最近的那个 workspace 行** ✓（`workspaceNameOf()` ✓，行锚点与反映共用 ✓）。名字是**装饰** ✓：`sameRoute` 对 workspace 路线只比**会话 id** ✓（名字过期也能落地 ✓）；读不到工作区行就退回 `#/session/<id>` ✓（不猜 ✓）。
 - **行锚点的 href 也要带工作区** ✓（右键"复制链接"直接给出带归属的链接 ✓）。
 - **作用域由视图决定，不靠猜**：主面板是应用级界面（列的是本机插件，不是某个对话），所以它的链接**不带**会话 id；只有会话级视图才写会话。
-- **设置浮层的标记被官方改过名** ✓（2026-10-24 发现并修）：老名字 `data-dsh-surface="settings"` 在 0.2.1-rc.2 的官方客户端里**已经一个都不剩** ✗（全 `@deepseek-ai` 包扫过 ✓，`data-dsh-*` 只剩 `data-dsh-automatic-focus` / `data-dsh-boot` ✓），现在叫 **`data-shortcut-modal="settings"`** ✓（`dsh-client-ui-settings-general/lib/client.js`：`role="dialog" aria-modal="true" data-shortcut-modal="settings"` ✓，里面 `<nav>` 的按钮仍是 `aria-current="true"` ✓）。
-  ⇒ 只认老名字的代码会**静默失效**：地址栏不反映设置浮层 ✗，粘 `#/settings` 也开不出来 ✗ —— **web 与桌面一样** ✓（同一套客户端）。现在统一走 `settingsOverlayOf()`：**新标记优先、老标记兜底** ✓。官方再改名时，改这一个函数 ✓。
+- **`data-dsh-surface` 从来不是官方标记** ✓（2026-10-24 实测订正，**上一轮"官方把设置标记改名了"的结论作废** ✗）：官方设置浮层根元素是 `role="dialog" aria-modal="true" data-shortcut-modal="settings"` ✓（`dsh-client-ui-settings-general/lib/client.js`，`dsh-client-ui-shortcuts` 与 `dsh-web-frontend/dist` 同名 ✓），里面 `<nav>` 的按钮仍是 `aria-current="true"` ✓。那个老名字是**第三方「皮肤中心」`@linxin666/dsh-client-ui-skin-center` 用 compat 适配器给官方 DOM 补打的** ✓（它自己的契约文档 `contracts/semantic-attrs-v1.md` 写明了 owner 是 skin-center、"非永久公共契约"、上游主题缝落地后进入删除评估 ✓）。
+  ⇒ 症状按 profile 分裂，**不是"两边一样"** ✓：装了皮肤中心的 web profile 里地址栏一直正常反映设置 ✓（我 3080 实测：开浮层 → `#/settings/账号与余额` ✓，两个标记同时在场 ✓）；桌面 home 没装它 ✗ → 只有那边"地址栏不反映设置"。**粘 `#/settings` 开不出来**同理 ✓（驱动也读同一个标记）。
+  ⇒ 现在的做法：`settingsOverlayOf()` **官方标记优先、皮肤中心标记兜底** ✓。**别把顺序改回去** ✗，也**别拿兜底那条当证据** —— 用户哪天关掉皮肤中心它就没了 ✓，官方那条永远在 ✓。
+  **教训**：`data-dsh-*` 这类语义属性**先问是谁打的**再决定能不能当契约 ✗（扫官方包 0 命中是真的，错在当年把它当成官方契约写进路由）。判断依据是**真机 DOM** ✓，不是 grep ✓。
 - **会话链接必须先把挡在前面的主面板让开** ✓（2026-10-24 修）：主面板选中时 `canonical` 就是面板 ✓，直接 `openSession` 会让地址栏立刻被写回面板路由 ✗（桌面版地址栏实测：面板 → 对话「没反应」✓）。驱动会话 / 工作区 / 轮次 / 行这些路由前，先 `host.beginNavigation()` + `host.selectPanel(null)` ✓，落地后由 `canonical` 归位 ✓。用例：`a conversation link takes the main column back from an open panel` ✓。
 - **一个 boot 的权威窗口（8 秒）**：链接在窗口内压过两边各自的 localStorage 恢复，窗口过后视图重新拥有地址栏。
 - **绝不抛错**：官方 `selectPanel` 对未注册的面板 id 是**抛异常**的，所有宿主面调用都必须被容纳（`attempt`/`guard`），失败只留一条诊断并回落到屏幕上真实的视图。
@@ -57,7 +59,7 @@
 - **观察者的 `attributeFilter` 必须列全所有已发布的页面钩子**：只列 `data-plugin-detail` 曾让任务看板的重试通知饿死（历史 bug，别删名单项）。
 - **未落地的链接要有定时重试**（`LINK_RETRY_MS` = 500ms）：只靠 DOM 通知不够，启动后界面会安静下来，一次被吞掉的重试就永远不来了。
 - **切换主面板前先 `beginNavigation()`**（`ctx.layout` 的配套动作，可选面，缺失即跳过）。
-- **设置面板是覆盖层**：`#/settings` ✓（裸段位 ✓，`ROUTE_PATTERN` 支持 `#/<kind>` ✓）与 `#/settings/<分区>` ✓。反映读 `[data-dsh-surface="settings"]` ✓；驱动点 `[data-slot="sidebar.settings"]` 的入口 ✓（兜底按可访问名 ✓）。
+- **设置面板是覆盖层**：`#/settings` ✓（裸段位 ✓，`ROUTE_PATTERN` 支持 `#/<kind>` ✓）与 `#/settings/<分区>` ✓。反映读 `settingsOverlayOf()` ✓（**官方 `data-shortcut-modal="settings"` 优先** ✓，见上条 ✓）；驱动点 `[data-slot="sidebar.settings"]` 的入口 ✓（兜底按可访问名 ✓）。
 - **设置分区的身份 = 显示名**（实测无稳定 id ✗：导航项只有 `aria-current="true"` ✓，无 `id`/`data-*`/`aria-controls` ✗，右侧内容区无 `data-*` ✗）。反映：在覆盖层里找 `aria-current="true"` **且 `closest('nav') !== null`** 的按钮 ✓，取它的标签文字 ✓；驱动：按标签（先精确、再忽略大小写）点 ✓。**换语言/改文案会让旧分区链接失效** ✗（重新点一次即写出新链接 ✓）。
 - **设置分区里的页签同理，再深一层** ✓：`#/settings/<分区>/<页签>`。契约是标准 ARIA ✓：`[role="tab"][aria-selected="true"]` ✓（实测 `dsh-usage` 的用量/个人套餐/Token 银行就是 `role="tab"` ✓），身份同样是**标签文字** ✓；驱动=先点分区、再点标签匹配的页签 ✓（同一次调用里做完 ✓，因为分区一点开，页签就在同一个覆盖层里 ✓）。
 - **`aria-selected` 也必须观察** ✓（与 `aria-current` 同理：切换页签只改它 ✓）。
