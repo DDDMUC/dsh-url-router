@@ -1,0 +1,8 @@
+# dsh-url-router-inspect bundle patch: inserts the observer row into the profile roster.
+#
+# This package is development-only. It observes the address bar that dsh-url-router
+# draws and reports where it landed; it draws nothing itself and changes nothing.
+# It is never published: the router's `files` whitelist excludes `dev/`.
+- insert:
+    - id: dsh-url-router-inspect
+      name: 'dsh-url-router-inspect'

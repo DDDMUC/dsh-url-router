@@ -55,8 +55,21 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 
 DSH 桌面版（Windows）的标题栏是**画在网页里的**：preload 给 `<html>` 打上 `data-windows-titlebar`、给出 `--dsh-windows-titlebar-height`，菜单条本身是页面里的一个 shadow DOM 固定元素（`[data-windows-menu]`）。那条 strip 里的空白是**页面空间**，而桌面版**自己没有地址栏** —— 于是本插件把地址栏放在那儿：
 
-- 只在 `html[data-windows-titlebar]` 存在时出现 ✓（Web 版与 macOS 上什么都不画 ✓）。
+- 只在 `html[data-windows-titlebar]` 存在时出现 ✓（纯 Web 版什么都不画 ✓）。
 - 位置：紧跟 shell 自己的菜单条右侧 ✓、右端避开窗口按钮 ✓；高度取 `--dsh-windows-titlebar-height` ✓；`-webkit-app-region: no-drag` 保证能点 ✓。
+
+### macOS 桌面的地址栏
+
+macOS 的标题栏是**原生**的（左边红黄绿三个灯），页面里没有 Windows 那条 strip 可以借。但会话页顶部有一行**常驻的标题行**（面包屑 + 模式标签 + 右侧按钮 + 电源按钮），地址栏就落在那行里：
+
+- 判定：shell 给 `<html>` 打上 `data-platform=darwin`（或 UA 是 Mac）**并且**（UA 里有 `Electron/<x>` **或**页面跑在 `dsh-app:` 协议上）→ 只有桌面 App 满足，浏览器里开 Web 版不画 ✓。（实测桌面版会把 UA 里的 `Electron/<x>` 抹掉，所以真正生效的是 `dsh-app:` 那条 ✓。）
+- 位置：先量这一行里**所有真正占位的东西**（有自己文字的元素、按钮、图标），按左边界排序并合并重叠 → 得到若干空白段 → 取**最宽的那一段**，右端贴着头部按钮、左端跟着走，两边各留 25px 内缩 ✓。
+- 宽度封顶 **1150px**：空白段的左边界是跟着**会话标题长度**跑的 ✓，不封顶的话换个会话框就变一次宽 ✓；放不下时按实际空白缩 ✓。
+- 和电源按钮**同一行**（垂直居中于它 ✓），`position: fixed` —— 所以既不遮挡也不挤压任何东西 ✓。
+- 没有电源按钮的界面（插件页、设置页、面板页）：沿用上一次量到的空白段，**位置不动** ✓。但如果窗口尺寸变过（> 8px），旧空白段已经不可信 ✓（头部按钮是靠右对齐的，窗口一变它们就移动了），此时**不猜** —— 先隐藏，等回到会话页重新量 ✓。
+- **只有一个框** ✓：挂载前先按 id 摘掉旧的 bar 和样式表 ✓，所以 effect 重跑多少次（热重载、重复 apply）都只有一个 ✓。
+- Windows 那条路径完全不变，`data-windows-titlebar` 优先，两种形态互斥 ✓。
+- 输入、反射、拒识、Escape 恢复的逻辑与 Windows 版共用同一份代码 ✓。
 - 输入什么 ✓：任何 `#/…` 路由（会话 / 工作区 / 视图 / 轮次 / 行 / 面板 / 设置三层 / 右栏 pane）、**裸会话 id**、或**整条链接**（只取它的 fragment）✓；回车写 hash → 浏览器触发 `hashchange` → 落地走的就是"粘贴链接"那条已验证的路 ✓。
 - 它同时是**反映** ✓：本插件每次写地址栏都会同步进这个框 ✓，所以它显示的就是"现在在哪" ✓。Escape 还原 ✓；认不出的文本不动地址栏 ✓。
 
@@ -130,7 +143,8 @@ Conversation rows and both plugin-list groups carry a transparent full-row ancho
 
 The Windows desktop window draws its own title bar **inside the page**: the preload marks `<html data-windows-titlebar>` and publishes `--dsh-windows-titlebar-height`, and its menu is a fixed shadow-DOM element in the page (`[data-windows-menu]`). That strip is page space, and the desktop window has **no address bar of its own** — so this plugin puts one there:
 
-- Drawn only when `html[data-windows-titlebar]` is present (nothing at all on the web app or macOS).
+- Drawn only when `html[data-windows-titlebar]` is present (nothing at all on the plain web app).
+- On the **macOS desktop** build there is no in-page strip to borrow, so the bar becomes a floating pill instead: pinned just under the native title bar at the window's top-right, 380×30, rounded, blurred and shadowed. It is recognised by the shell's `<html data-platform="darwin">` marker (or a Mac user agent) together with the window being the application — Electron in the user agent or the `dsh-app:` scheme — so the web app in a browser never draws it. It sits inside the 48px the shell reserves above its frame (`--dsh-frame-top-clearance`), clear of the traffic lights. Both shapes share one code path; the Windows marker wins when present.
 - Placed right after the shell's own menu and before the window buttons, at `--dsh-windows-titlebar-height`, with `-webkit-app-region: no-drag` so it stays clickable.
 - Accepts any `#/…` route, a bare conversation id, or a whole link (only its fragment is used); Enter writes the hash, the browser fires `hashchange`, and the link lands through the very same path a pasted link takes.
 - It also **reflects**: every write this plugin makes to the address bar is mirrored into the box, so it always names what is on screen. Escape restores it; text that names no route is refused.

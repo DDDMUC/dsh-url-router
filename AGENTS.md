@@ -83,13 +83,25 @@
 ## 桌面地址栏契约（2026-10-24 起，改之前先读）
 
 - **形态**：Windows 桌面版的标题栏是**页面里画的** ✓ —— preload（`app.asar` 的 `lib/preload-app.cjs`）跑 `syncWindowsAppearance()`：给 `<html>` 打 `data-windows-titlebar`、设 `--dsh-windows-titlebar-height: 40px`，并用 shadow DOM 画菜单条（宿主 `[data-windows-menu]`，`position:fixed; top:0; left:var(--dsh-windows-menu-start,48px); z-index:1100; -webkit-app-region:no-drag`）。⇒ 那条 strip 是**页面空间** ✓，插件可以往里画 ✓。
-- **门控**：只有 `documentElement.getAttribute('data-windows-titlebar') !== null` 时才画 ✓；Web 版与 macOS 上**一行都不执行** ✓（"并进 url-router 但不影响其它平台"的全部机制就是这个 ✓）。
+- **门控**：Windows 那条路径只在 `documentElement.getAttribute('data-windows-titlebar') !== null` 时执行 ✓；Web 版**一行都不执行** ✓。macOS 走另一条分支 ✓（见下节 ✓），两者靠 `macInHeader = !windowsStrip && macDesktopWindow(root)` 互斥 ✓，`place()` 里就是一个 if/else ✓ —— **不是两个各自独立挂载的组件** ✓。
 - **定位**：`left = 48 + 菜单宿主宽度 + 8` ✓（宽度用宿主 `getBoundingClientRect()` 量 ✓，**不要**读 shadow 内部 ✗）；`right = TITLEBAR_CAPTION_WIDTH = 138px` 是 Windows 窗口按钮宽度常量 ✓（改缩放/换系统可能要调 ✓）；高度一律走 CSS 变量 ✓，不要写死 40 ✓。
 - **交互**：`-webkit-app-region: no-drag` 必须留 ✓ —— strip 本身是拖拽区 ✗，去掉它输入框点不动 ✗。
 - **落地只写 hash** ✓：`window.location.hash = fragment` ✓，绝不自己调路由内部 ✗ —— 浏览器触发 `hashchange` ✓，落地就是"粘贴链接"那条已验证的路 ✓。
 - **反映靠 feed** ✓：`reflect()` 写完地址栏后 `publishRoute(wantedHash)` ✓，桌面栏 `subscribeRoute(show)` ✓。**别改成监听 `hashchange`** ✗ —— 本插件用 `replaceState` 写地址栏 ✗、**不触发** hashchange ✗，改了就变成"框里永远是旧的" ✗。
 - **假 DOM 不支持 `#id` 选择器** ✗ → 地址栏带 `data-dsh-part="url-router-address-bar"` ✓，测试用属性选择器 ✓（行锚点当年同理 ✓）。
 - **验收**：布局可在 Web 版上用 `document.documentElement.setAttribute('data-windows-titlebar','')` + 那个 CSS 变量预演 ✓（同一套 CSS ✓），但 `dsh-app://` 下的 `replaceState` / `hashchange` 行为**只能真机确认** ✓。
+
+## macOS 地址栏契约（2026-10-25 起，改之前先读）
+
+- **形态**：macOS 没有页面里画的 strip ✓（标题栏是原生的，红黄绿三个灯在左上 ✓）。借的是会话页顶部那行**常驻标题行** ✓：面包屑 + 模式标签 + 右侧一排按钮 + 电源按钮 ✓。bar 仍是 `position:fixed` 挂在 body 上 ✓ —— 和 Windows 同一套挂载方式 ✓。
+- **判定**：`data-platform=darwin`（或 UA 是 Mac）**且**（UA 有 `Electron/<x>` **或**协议是 `dsh-app:`）✓。**实测桌面版把 UA 里的 `Electron/` 抹掉了** ✓（UA 形如 `… @deepseek-ai/dsh-desktop/0.2.1-rc` ✓），所以真正生效的是 `dsh-app:` 那条 ✓ —— 别以为 UA 分支在兜底 ✓。
+- **定位 = 量空白段，不是探矩形** ✓：`macLeaves()` 走一遍行内**所有真正占位的元素** ✓（有自己文字、或 `button/a/input/[role=button]/[role=tab]/img/svg`、或没有子元素 ✓）→ 只留和电源按钮同一行的 ✓ → 按左边界排序并**合并重叠** ✓ → 求所有空白段 ✓ → 取**最宽**那段 ✓ → `fitBar()` 右对齐（贴着头部按钮）+ 两侧 `MAC_BAR_INSET = 25` 内缩 ✓。
+- **宽度必须封顶** ✓（`MAC_BAR_MAX_WIDTH = 1150`）：空白段的左边界就是**会话标题文字的右边界** ✓，不封顶的话每换一个会话框就变一次宽 ✓。
+- **「探测矩形 + 一撞就隐藏」那套别再写** ✗：它把候选框放在电源按钮左侧 ✓，必然横跨头部那排按钮 ✓，于是每次都被判"不空"然后整框 `display:none` ✓ —— 这就是"框怎么都不出来"的历史 bug ✓。
+- **没有电源按钮的界面**（插件页 / 设置页 / 面板页 ✓）：沿用上一次量到的空白段 ✓，位置不动 ✓。**但要把窗口宽度一起存** ✓（`{top, viewport, gap}` ✓）：头部按钮是**右对齐**的 ✓，窗口一变它们就移动 ✓，旧空白段会把框画到标题甚至侧边栏上 ✓（真机抓到过 `bar.left=122` 而 `row.left=301` ✓）。宽度差超过 `MAC_BAR_RESIZE_SLACK = 8` 就**不猜** ✓，先隐藏，等回会话页重新量 ✓。
+- **只有一个框** ✓：挂载前先 `getElementById` 摘掉同 id 的旧 bar 和旧样式表 ✓ —— effect 重跑（热重载 / 重复 apply）不会多一个 ✓。
+- **调试不在产品里** ✓：`dev/inspect/` 是一个**独立观察器插件** ✓（`private: true`，靠根 `files` 白名单不进 npm ✓），只读公开契约（`#dsh-url-router-titlebar`、`data-dsh-url-router-platform`、`[class*="titleRow"]`、`.dshpm-trigger`）✓。判据三条：`bars` 恒为 1 ✓、`onTop` ✓、`leaves` 有没有被压住 ✓。**别再把调试代码写回 `lib/client.js`** ✗ —— 发布物必须是跑过测试的那一份 ✓。
+- **假 DOM 不支持 `#id` 选择器** ✗：mac 侧的新代码对 `getElementById` / `querySelectorAll` 全部用了可选调用 ✓，测试里缺失即跳过 ✓。
 
 ## 跨机开发日志
 

@@ -1,0 +1,25 @@
+{
+  "name": "dsh-url-router-inspect",
+  "version": "0.0.0",
+  "private": true,
+  "description": "开发用观察器（不发布）：只读 dsh-url-router 画出来的地址栏，把它的位置、层级和所在行的占位情况上报到本地，用于在没有控制台的桌面窗口里排查布局。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.0-rc.2"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": []
+    }
+  }
+}
