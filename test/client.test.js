@@ -1037,6 +1037,44 @@ test('a component link never presses a plugin row\'s enable switch', () => {
   assert.equal(env.warnings.filter(w => w.includes('dsh-url-router')).length, 1)
 })
 
+test('a panel link that also names a pane never asks a panel for a page called "files"', () => {
+  // Given a plugin's page with a component row whose id happens to be a pane kind's name
+  const dom = fakeDom([])
+  const { button: cardButton, panel } = addPluginRow(dom, 'dsh-free-search')
+  const detail = dom.document.createElement('div')
+  detail.setAttribute('data-plugin-detail', 'dsh-free-search')
+  panel.appendChild(detail)
+  const row = dom.document.createElement('li')
+  row.setAttribute('data-plugin-row', 'include:files')
+  const rowButton = dom.document.createElement('button')
+  let rowClicks = 0
+  rowButton.click = () => { rowClicks += 1 }
+  row.appendChild(rowButton)
+  panel.appendChild(row)
+  const panes = []
+  const env = environment({
+    panels: ['plugins'],
+    activePanelId: 'plugins',
+    sidebarRightTabs: {
+      getSnapshot: () => ({ activeTabId: undefined }),
+      openTab: kind => panes.push(kind),
+    },
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  let cardClicks = 0
+  cardButton.click = () => { cardClicks += 1 }
+  open(env)
+  // When a link names that page *and* a right-bar pane
+  env.api.navigate('#/panel/plugins/dsh-free-search/pane/files')
+  // Then the package page was opened, the row called "files" was left alone ...
+  assert.equal(cardClicks, 1)
+  assert.equal(rowClicks, 0)
+  // ... and the pane was asked for separately
+  assert.deepEqual(panes, ['files'])
+})
+
 test('a hashchange to a detail link drives the panel at runtime', () => {
   // Given the plugins panel is already on screen (no inner page open)
   const dom = fakeDom([])
@@ -2577,6 +2615,181 @@ test('a link into a position inside a screen is remembered as that screen', () =
   const items = list.querySelectorAll('[data-dsh-url-router-recent-item]')
   assert.equal(items.length, 1)
   assert.equal(items[0].getAttribute('data-dsh-url-router-recent-item'), '#/session/session-abc/turn/3')
+})
+
+/** The automation-task panel: status filter, one task row, and the detail its open task shows. */
+function addSchedulesPanel(dom, options = {}) {
+  const panel = dom.document.createElement('section')
+  panel.setAttribute('data-plugin-panel', 'schedules')
+  const group = dom.document.createElement('div')
+  group.setAttribute('role', 'group')
+  let pressed = options.pressed ?? 0
+  const buttons = ['All', 'Enabled', 'Inactive'].map((text, index) => {
+    const button = dom.document.createElement('button')
+    button.setAttribute('aria-pressed', index === pressed ? 'true' : 'false')
+    button.textContent = text
+    button.click = () => {
+      pressed = index
+      for (const [position, candidate] of buttons.entries()) candidate.setAttribute('aria-pressed', position === pressed ? 'true' : 'false')
+    }
+    group.appendChild(button)
+    return button
+  })
+  panel.appendChild(group)
+  const row = dom.document.createElement('button')
+  row.setAttribute('aria-describedby', ':r1:-metadata-schedule-abc')
+  row.setAttribute('aria-expanded', 'false')
+  row.textContent = 'B站关注列表补两个新关注'
+  const list = dom.document.createElement('ul')
+  list.appendChild(row)
+  panel.appendChild(list)
+  let tab = 'rule'
+  let detail
+  row.click = () => {
+    row.setAttribute('aria-expanded', 'true')
+    if (detail !== undefined) return
+    detail = dom.document.createElement('aside')
+    detail.setAttribute('aria-label', 'Task details')
+    for (const value of ['rule', 'records']) {
+      const entry = dom.document.createElement('button')
+      entry.setAttribute('data-detail-tab', value)
+      entry.setAttribute('aria-selected', value === tab ? 'true' : 'false')
+      entry.textContent = value
+      entry.click = () => {
+        tab = value
+        for (const candidate of detail.querySelectorAll('[data-detail-tab]')) {
+          candidate.setAttribute('aria-selected', candidate.getAttribute('data-detail-tab') === tab ? 'true' : 'false')
+        }
+      }
+      detail.appendChild(entry)
+    }
+    panel.appendChild(detail)
+  }
+  dom.body.appendChild(panel)
+  return { panel, group, buttons, row, get detail() { return detail } }
+}
+
+test('the automation list names the status filter it is showing', () => {
+  // Given the automation panel on screen with its second filter pressed and no task open
+  const dom = fakeDom([])
+  addSchedulesPanel(dom, { pressed: 1 })
+  const env = environment({ panels: ['schedules'], activePanelId: 'schedules' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the address bar names the filter, in the manager's own value (not its label)
+  assert.equal(env.location.hash, '#/panel/schedules/filter/active')
+})
+
+test('the default filter is not written, and its link is the bare panel', () => {
+  // Given the automation panel showing its first (default) filter
+  const dom = fakeDom([])
+  addSchedulesPanel(dom, { pressed: 0 })
+  const env = environment({ panels: ['schedules'], activePanelId: 'schedules' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the link is the panel itself
+  assert.equal(env.location.hash, '#/panel/schedules')
+})
+
+test('a status filter link presses that filter', () => {
+  // Given a link naming the last filter, before the panel has rendered
+  const dom = fakeDom([])
+  const { buttons } = addSchedulesPanel(dom, { pressed: 0 })
+  const env = environment({ hash: '#/panel/schedules/filter/inactive', panels: ['schedules'], activePanelId: 'schedules' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  triggerObservers(dom)
+  // Then the third filter was pressed and the address bar agrees with it
+  assert.equal(buttons[2].getAttribute('aria-pressed'), 'true')
+  assert.equal(buttons[0].getAttribute('aria-pressed'), 'false')
+  assert.equal(env.location.hash, '#/panel/schedules/filter/inactive')
+})
+
+test('the open automation task is named, with the detail tab it shows', () => {
+  // Given the automation panel with one task whose detail is open on its first tab
+  const dom = fakeDom([])
+  const { row } = addSchedulesPanel(dom, { pressed: 0 })
+  row.click()
+  const env = environment({ panels: ['schedules'], activePanelId: 'schedules' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the task is part of the link, and its default tab is not written out
+  assert.equal(env.location.hash, '#/panel/schedules/task/schedule-abc')
+  // When the reader switches the detail to the records tab
+  row.value = 'records'
+  const detailTab = dom.document.querySelectorAll('[data-detail-tab]').find(node => node.getAttribute('data-detail-tab') === 'records')
+  detailTab.click()
+  triggerObservers(dom)
+  // Then the link follows the tab
+  assert.equal(env.location.hash, '#/panel/schedules/task/schedule-abc/records')
+})
+
+test('an automation task link opens the task and that tab', () => {
+  // Given a link naming a task and its records tab
+  const dom = fakeDom([])
+  const { row } = addSchedulesPanel(dom, { pressed: 0 })
+  const env = environment({ hash: '#/panel/schedules/task/schedule-abc/records', panels: ['schedules'], activePanelId: 'schedules' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  triggerObservers(dom)
+  // Then the row was opened and the records tab selected
+  assert.equal(row.getAttribute('aria-expanded'), 'true')
+  const detailTab = dom.document.querySelectorAll('[data-detail-tab]').find(node => node.getAttribute('data-detail-tab') === 'records')
+  assert.equal(detailTab.getAttribute('aria-selected'), 'true')
+  // And the address bar settles on the link's own canonical form
+  assert.equal(env.location.hash, '#/panel/schedules/task/schedule-abc/records')
+})
+
+test('a collapsed right bar contributes no pane to the address bar', () => {
+  // Given a session on screen with a right-bar tab still mounted while the bar is collapsed
+  const dom = fakeDom(['session:session-a'])
+  const { root } = addRightBarTab(dom, 'Files', true)
+  const marker = dom.document.createElement('div')
+  marker.setAttribute('data-rightbar-collapsed', 'true')
+  dom.body.appendChild(marker)
+  const env = environment({ panels: [], activePanelId: null, sidebarRightTabs: { getSnapshot: () => ({ activeTabId: 'files' }) } })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // Then the address bar names the conversation only: a shut bar has no pane on screen
+  assert.equal(env.location.hash, '#/session/session-a')
+  assert.ok(root !== null)
+})
+
+test('a pane whose title is a file name is still named by its kind', () => {
+  // Given a Files tab showing a file, so the tab's own title is that file's name
+  const dom = fakeDom(['session:session-a'])
+  addRightBarTab(dom, 'client.js', true)
+  // ... and the controller, which knows the tab's kind
+  const env = environment({
+    panels: [],
+    activePanelId: null,
+    sidebarRight: { active: () => ({ id: 'tab3', kind: 'files', title: 'client.js' }) },
+    sidebarRightTabs: { getSnapshot: () => ({ activeTabId: undefined }) },
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  open(env)
+  // Then the route names the kind, never the file
+  assert.equal(env.location.hash, '#/session/session-a/pane/files')
 })
 
 test('a remembered link opens when it is picked from the list', () => {

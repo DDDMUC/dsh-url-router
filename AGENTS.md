@@ -122,6 +122,21 @@
   - **没有 slot 服务 / 没有 React / 没有 DOM 就跳过** ✓（`startSettingsCard()` 逐项判型 ✓）：组合里缺插件管理器不算失败 ✓。
 - **驱动组件页时绝不能点启用开关** ✓（2026-10-26 实测踩到 ✓）：插件行的**第一个 `<button>` 可以是 `role="switch"` 的启用开关** ✗ —— 旧的 `row.querySelector('button').click()` 把插件**关掉**了 ✓（probe profile 里真的被写成 `disabled: true` ✗）。现在走 `openControlOf()` ✓：跳过 `role="switch"` ✓，找不到就**不点** ✓，让链接按时过期 ✓。**以后任何"按行打开某页"的代码都得走它** ✓。
 
+## 自动化任务面板（2026-10-26 起，改之前先读）
+
+- **段位** ✓：`#/panel/schedules[/filter/<all|active|inactive>][/task/<任务 id>[/<tab>]]` ✓。默认的 `filter/all` 与默认的 `rule` 页签**不写进链接** ✓，但 `filter/all` 作为**输入**要归一化掉（`normalisePanelInner()` ✓），否则那条链接永远等不到一个会写 `all` 的页面 ✓。
+- **筛选项没有值，只有位置** ✓：官方源码把 `["all","active","inactive"]` 映射成三个按钮 ✓，按钮上只有 `aria-pressed` ✓（实测 ✓）—— 所以链接里的值就是**位置对应的固定 token** ✓，与语言无关 ✓。识别那组按钮：`[role="group"]` 下**恰好三个按钮、每个都有 `aria-pressed`** ✓，且不在右栏里 ✓。
+- **`aria-pressed` 必须在 DOM 观察者的 `attributeFilter` 里** ✓：按下筛选只改这一个属性 ✓，漏了它地址栏就停在第一次的筛选上 ✓（实际踩到 ✓）。
+- **任务详情** ✓：行是 `li > button`（`aria-label` = 任务名 ✓，`aria-expanded` = 是否展开 ✓，`aria-describedby` 末尾是 `-metadata-<任务 id>` ✓ 实测 ✓）；详情是 `<aside aria-label="Task details">` ✓，页签是 `button[data-detail-tab="rule|records"]` + `aria-selected` ✓（实测 ✓）。**任务 id 只能从 `aria-describedby` 的末段取** ✓（`useId` 前缀不稳定 ✓）。
+- **筛选先于任务** ✓：筛完才可能有点得到的行 ✓，所以驱动顺序固定 ✓。
+
+## 右栏 pane 的两条修正（2026-10-26 起）
+
+- **收起的右栏不算 pane** ✓：收起来时页签仍挂在 DOM 里 ✗（实测：关掉右栏后 `active` 仍返回上一个页签 ✗），所以 canonical 先问 `[data-rightbar-collapsed]` ✓（值为 `true` 或空即收起 ✓），收起时**不写 `pane/…`** ✓。会话与面板两条分支都要判 ✓（只改一条会漏 ✓）。
+- **kind 优先读控制器** ✓：`sidebarRight.active()` 返回的是活的 tab 描述符 `{ id, kind, contentId, title }` ✓（实测 ✓），而 DOM 上只有标题 ✗ —— Files 页签在打开文件后标题会变成**文件名**（`client.js` ✗），拿标题当 kind 就会写出 `pane/client.js` ✓（用户截图里就是这个 ✓）。所以顺序是**控制器 → DOM 标签 → 注册表** ✓；DOM 标签匹配不到注册表时，只有在**没有注册表**的情况下才把它当 kind ✓，有注册表就当它是标题、返回 undefined ✓。
+- **面板自己的页排在 pane 前面** ✓：canonical 先取 `panelPage()` ✓，再把 `pane/<kind>` 接在后面 ✓（旧版让 pane 先 return ✗，于是自动化任务的详情页永远抢不到地址栏 ✓）。**驱动面板页时要把 `pane/<kind>` 尾巴摘掉** ✓，否则会把面板页当成 `files` 页去点 ✓（路由器自己写出的链接就会踩到 ✓）。
+- **面板链接按前缀落地** ✓（`sameRoute` 的面板分支 ✓）：链接可以比屏幕上的页**更宽**（`plugins/<包>` 被 `plugins/<包>/<组件>` 满足 ✓），但不能更窄 ✓；链接没写 pane 就忽略 pane ✓，写了就要对上 ✓。精确比较会让"页面已经打开"的链接一直等下去 ✗。
+
 ## 跨机开发日志
 
 改动记录在私有库 [DDDMUC/repo-devlogs](https://github.com/DDDMUC/repo-devlogs) 的 **`dsh-url-router/`** 文件夹（`HANDOFF.md` 最新一轮在最上面；macOS 端写 `WORKLOG-macos.md`，条目以 `[macOS]` 开头）。按该库规矩，每条先写 `**运行环境**`（设备 / 应用 / 服务商与模型），再写做了什么、动了哪些文件、怎么验证、遗留问题。

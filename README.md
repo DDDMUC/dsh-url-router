@@ -38,10 +38,15 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 | `#/panel/plugins/<包名>/<组件 id>` | 插件页面里的某个组件页 | 面板自己的组件行控件 |
 | `#/panel/task-board/task/<任务 id>` | 任务看板里某个任务的详情 | 任务看板自己的 `dsh-taskboard-open-task` 窗口事件 |
 | `#/panel/task-board/new` | 任务看板的新建任务表单 | 任务看板自己的 `dsh-taskboard-new-task` 窗口事件 |
+| `#/panel/schedules/filter/<all\|active\|inactive>` | 自动化任务的状态筛选（已开启 / 已结束；默认的 `all` 不写进链接） | 面板自己的筛选按钮（按位置，语言无关） |
+| `#/panel/schedules/task/<任务 id>` | 自动化任务里某条任务的详情（规则页） | 面板自己的任务行 |
+| `#/panel/schedules/task/<任务 id>/records` | 同一条任务的「运行记录」页（默认的 `rule` 不写） | 面板详情里的页签 |
 
 输入侧宽容：`sessions`/`panels` 复数、百分号编码都接受，一律规范化成上面的形式。**不认识的段位不碰**，只留一条诊断（留给以后的路由器，或者别的插件写的深链形态 ✓ —— 一个 fragment 只能有一个写者 ✓，所以读到不属于本插件的形态时会**明确说一句**，而不是静默 ✗）。
 
-面板内部页是**面板自己的词汇表**，本插件不发明：插件管理器发布 `data-plugin-detail` / `data-plugin-item-detail` / `data-plugin-row-detail`，任务看板发布 `data-dsh-taskboard-open-task` / `data-dsh-taskboard-new-task`，并接受同名窗口事件。
+面板内部页是**面板自己的词汇表**，本插件不发明：插件管理器发布 `data-plugin-detail` / `data-plugin-item-detail` / `data-plugin-row-detail`，任务看板发布 `data-dsh-taskboard-open-task` / `data-dsh-taskboard-new-task`，并接受同名窗口事件；自动化任务面板的三态筛选只有 `aria-pressed`（按钮上没有值），所以链接里写的是官方那三个固定值的**位置**（`all` / `active` / `inactive`），换语言不影响；任务详情用行上的 `aria-expanded` 与 `aria-describedby` 末段的 id 认，页签用它自己的 `data-detail-tab="rule|records"`。
+
+**右栏 pane 是页面旁边的一层，不是页面本身** ✓：面板自己的页现在排在 pane 前面（`#/panel/schedules/task/<id>/records`，不带上右栏就不会多出 `pane/…`），右栏收起时它那一层**直接不写**（收起的右栏会把页签留在 DOM 里，旧版因此把 `pane/client.js` 这种已经不在屏上的东西写进了地址栏）；pane 的 kind 优先读右栏控制器里的 `{kind}`，因为 Files 页签在打开文件后标题会变成文件名（`client.js`），拿标题当 kind 就是错的。
 
 ### 每一行都是真链接
 
@@ -148,6 +153,9 @@ Listed in the community plugin index: [zhu1090093659/dsh-community-plugins](http
 | --- | --- |
 | `#/session/<id>` | the conversation the main view shows |
 | `#/panel/<panelId>` | a main-column panel |
+| `#/panel/schedules/filter/<all\|active\|inactive>` | the automation list's status filter (the default `all` is not written) |
+| `#/panel/schedules/task/<id>` | one automation task's detail (its rules tab) |
+| `#/panel/schedules/task/<id>/records` | that task's records tab (the default `rule` is not written) |
 | `#/panel/plugins/<package>` | an installed plugin's page |
 | `#/panel/plugins/<item>` | a built-in plugin's page (`shell`, `agent-loop`, `subagent`, `web-search`) |
 | `#/panel/plugins/<package>/<component>` | one component page inside that plugin's page |
