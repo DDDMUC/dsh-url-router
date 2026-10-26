@@ -82,7 +82,9 @@ macOS 的标题栏是**原生**的（左边红黄绿三个灯），页面里没�
 | 首次点击地址栏时全选 | 开 | 像浏览器地址栏：**第一次**点进去，框里原来的链接整条选中，直接输入就替换它；已经聚焦时再点，才是放光标。关掉后就是一个普通文本框。 |
 | 记住最近链接的条数 | 8 | **下拉框里能看到的条数**（地址栏里正显示的那个界面不算 —— 它已经在你眼前了，离开之后才会回到列表）。最低 **0**（= 不记忆，地址栏也不再弹最近列表），**没有上限**。 |
 
-最近列表的用法与浏览器一致：点地址栏就弹出来，输入即过滤，Esc 关掉；条目有两个来源 —— **用过的界面**（本插件写进地址栏的每一个界面 ✓）和**粘贴过的链接**（在地址栏里粘贴任何本插件认得的链接或裸会话 id ✓，落地与否都先记住 ✓）。点一条就打开它。
+最近列表的用法与浏览器一致：点地址栏就弹出来，输入即过滤，Esc 关掉；条目有两个来源 —— **用过的界面**（本插件写进地址栏的每一个界面 ✓）和**粘贴过的链接**（在地址栏里粘贴任何本插件认得的链接或裸会话 id ✓，落地与否都先记住 ✓）。
+
+**左键 = 跳过去，右键 = 复制链接** ✓：右键那一下会吃掉浏览器菜单 ✓，直接把**完整 URL**（路径 + 启动 `?token=…` + fragment ✓）放进剪贴板 ✓，粘到新标签页或发给别人就能开 ✓；被复制的那一条会短暂显示「已复制 ✓」✓，地址栏右端也会闪一下「已复制链接」✓（列表不会因此关掉、光标也不会跑 ✓）。
 
 - 身份是**界面**，不是坐标 ✓：`#/session/<id>/turn/3/row/…` 这类点位链接归并到它所在的会话 ✓，不会用同一个对话把列表刷满 ✓；同一界面再次出现只是**提到最前** ✓，不重复 ✓。
 - 当前屏幕**不列出来** ✓（它不是一个"回去"的地方）。
@@ -177,7 +179,9 @@ Find this plugin's row in the **plugin manager** and press its configure control
 | Select the whole link on the first click | on | Like a browser's address bar: the **first** click selects everything already in the box, so typing replaces the old link; a further click once the box is focused places the caret. Turned off, it is an ordinary text field. |
 | Remembered links | 8 | How many links the drop-down lists (the screen already in the address bar does not count — it is where you are; it returns to the list once you leave it). The floor is **0** (no memory, and no recent list), and there is **no ceiling**. |
 
-The recent list behaves like a browser's: focusing the bar opens it, typing narrows it, Escape closes it. Entries come from two places — **the screens this plugin named** (every view it wrote into the address bar) and **the links pasted into the bar** (anything it can open, remembered whether or not it lands). Picking one opens it.
+The recent list behaves like a browser's: focusing the bar opens it, typing narrows it, Escape closes it. Entries come from two places — **the screens this plugin named** (every view it wrote into the address bar) and **the links pasted into the bar** (anything it can open, remembered whether or not it lands).
+
+**Left click opens it, right click copies it.** The right click swallows the browser menu and puts the **whole URL** on the clipboard — path, launch query (`?token=…`) and fragment — so it opens in a new tab or on another machine's window. The copied row briefly says "已复制 ✓" and the bar flashes "已复制链接"; the list stays open and the caret stays put.
 
 - Identity is the **screen**, not the position: a link into `#/session/<id>/turn/3/row/…` folds into its conversation, so one conversation cannot fill the list; seeing the same screen again moves it to the front instead of adding it twice.
 - The screen on display is not offered (it is not somewhere to go back to).

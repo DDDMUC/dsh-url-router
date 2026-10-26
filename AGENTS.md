@@ -110,6 +110,10 @@
 - **当前链接不能当过滤词** ✗：框里平时就写着当前界面 ✓ —— 按 `input.value` 过滤会在聚焦瞬间把列表清空 ✓（踩过 ✓）。**只有读者真的编辑过（`input` 事件）才过滤** ✓（`narrowed` 标志 ✓）。
 - **最近列表的身份 = 界面** ✓，不是坐标 ✓：`recentIdentity()` 把 `turn` / `row` / `view` / `pane` / 面板内部页都归并到所在表面 ✓（`workspace` 形状取里面的会话 id ✓）。否则在一个对话里点几十行就把列表刷满 ✓。**当前屏幕不列出** ✓。
 - **条数 = 下拉框里能看到的条数** ✓，**当前屏幕不占名额** ✓（用户 2026-10-26 明确纠正过：按存储条数算会永远少一条 ✓）。做法：磁盘多留一个缓冲位（`recentKeep() = limit + 1` ✓，当前屏幕最多占一条 ✓），`recentEntries()` 先砍掉当前屏幕再取 `limit` ✓。默认 8 ✓、**0 = 关闭** ✓（不写盘 ✓、不弹列表 ✓）、**无上限** ✓（`normaliseSettings` 只做非负取整 ✓，别加"顺手"的上限 ✗）。调小要**立刻**裁掉 ✓（`trimRecent()` ✓），不能等下一次写入 ✓；**`recentEntries()` 纯读** ✓（`report()` 会调它 ✓，绝不能写盘 ✗）。
+- **最近列表的两种点击** ✓：左键 = `driveTypedFragment(hash)` + `settle`（照旧 ✓）；**右键 = 复制链接** ✓。右键必须 `preventDefault`（吃掉浏览器菜单 ✓），复制的是**绝对 URL**（`origin + pathname + search + hash` ✓ —— 只复制 fragment 在新标签页里打不开 ✓），路径与启动 `?token=…` 一起带上 ✓。反馈两处 ✓：行内文本临时变「已复制 ✓」✓、bar 右端的 `[data-dsh-url-router-toast]` 闪「已复制链接」✓（列表关了也看得见 ✓）。
+  - 复制优先 `navigator.clipboard.writeText` ✓（**它是异步的，失败时再走 fallback** ✓）；没有该服务（`dsh-app:` 这类非常规协议可能没有 ✓）或它拒绝时，用**临时 textarea + `execCommand('copy')`** ✓ —— 这条会抢焦点 ✗，所以用 `quietly()` 把 `focus`/`blur` 事件屏蔽掉 ✓（否则 `blur` 会把列表关掉 ✗、`focus` 会重选整条链接 ✗），复制完再把焦点还给输入框 ✓。
+  - **别把 fallback 当实参提前求值** ✗：`attemptValue` 只有一个参数 ✓，写成 `attemptValue(fn, fallback())` 会让 fallback **每次都执行** ✓（真机表现：每次右键都闪一下、焦点跑到 body、列表被关掉 ✗ —— 2026-10-26 实测踩到 ✓）。
+  - `copyBySelection` 也会临时 `input.focus()` 回来 ✓，卸载时清掉 toast / copied 的定时器 ✓。
 - **粘贴先记，落地再记一次** ✓：`paste` 事件里只要 `titlebarFragmentOf()` 认得出就先记 ✓（已经在屏上的链接不会触发 `reflect` 写入 ✗，否则它永远记不上 ✓）。`visit` 记在 `publishRoute()` ✓ —— 那是"地址栏真的被写了"的唯一入口 ✓。
 - **假 DOM**：`input.select` / `input.focus` / `document.activeElement` / `removeChild` 全部可选调用或判型 ✓，假 DOM 已补齐这几个 ✓（`select()` 记次数、`focus()` 写 `activeElement` ✓）。
 - **设置页 = 插件管理器里那一行** ✓（不是独立的设置分区 ✓）：`ctx.slots.inject('plugins.row.config', …)` + `ctx.slots.register({name:'plugins.row.config', key: ROW_CONFIG_KEY}, Card)` ✓，`ROW_CONFIG_KEY = 'dsh-url-router#dsh-url-router'` ✓ —— 键的形状是 `<包名>#<row id>` ✓（官方 `rowConfigKey()` 实测 ✓），本插件包名与行 id 恰好同名 ✓，于是那个页面的 URL 正好是 `#/panel/plugins/dsh-url-router/dsh-url-router` ✓。

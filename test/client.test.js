@@ -204,7 +204,11 @@ function environment(options = {}) {
     // protocol off the global and the bar's preferences off localStorage.
     location,
     localStorage,
-    navigator: { userAgent: options.userAgent ?? '' },
+    navigator: {
+      userAgent: options.userAgent ?? '',
+      // A clipboard service only where a test asks for one, the way a secure page has it.
+      ...(options.clipboard === undefined ? {} : { clipboard: options.clipboard }),
+    },
   })
   vm.runInContext(BUNDLE_SOURCE, context, { filename: 'lib/client.js' })
   assert.ok(captured !== undefined, 'the bundle must register itself with the module loader')
@@ -2597,6 +2601,70 @@ test('a remembered link opens when it is picked from the list', () => {
   assert.deepEqual(env.opened, ['session-abc'])
   assert.equal(env.location.hash, '#/session/session-abc')
   assert.equal(list.getAttribute('data-open'), null)
+})
+
+test('right-click on a remembered link copies it instead of opening a menu', async () => {
+  // Given a bar offering one remembered conversation, and a clipboard to copy into
+  const copied = []
+  const clipboard = {
+    writeText(text) {
+      copied.push(text)
+      return Promise.resolve()
+    },
+  }
+  const storage = new Map([
+    ['dsh-url-router-recent', JSON.stringify([{ hash: '#/session/session-abc', at: 1, source: 'visit' }])],
+  ])
+  const { env, dom } = openWithTitlebar(['session-abc'], { menuWidth: 120, storage, clipboard })
+  const { input, list } = barOf(dom)
+  env.api.list('session-abc')
+  input.focus()
+  input.fire('focus', {})
+  const item = list.querySelector('[data-dsh-url-router-recent-item]')
+  assert.ok(item !== null, 'the remembered link must be offered')
+  let prevented = 0
+  // When the reader right-clicks it
+  item.fire('contextmenu', { preventDefault: () => { prevented += 1 } })
+  // Then no menu opens ...
+  assert.equal(prevented, 1)
+  // ... and the whole link is on the clipboard, path and launch query included, so it opens
+  // in another tab rather than only inside this one
+  assert.deepEqual(copied, ['/#/session/session-abc'])
+  // And the row says so, without leaving the list or navigating anywhere
+  await new Promise(resolve => setTimeout(resolve, 0))
+  assert.equal(item.getAttribute('data-copied'), '')
+  // (the fake DOM has no class selectors, so the row's own children are searched by name)
+  const linkText = item.children.find(node => node.className === 'dshur-link')
+  assert.equal(linkText.textContent, '已复制 ✓')
+  assert.equal(env.window.document.querySelector('[data-dsh-url-router-toast]').textContent, '已复制链接')
+  assert.equal(list.getAttribute('data-open'), '')
+  assert.equal(env.location.hash, '')
+  // And the copy never stole the caret: the clipboard service is used, not a throw-away field
+  assert.equal(env.window.document.activeElement, input)
+})
+
+test('right-click without a clipboard service still leaves the bar alone', async () => {
+  // Given a window whose host offers no clipboard service at all
+  const storage = new Map([
+    ['dsh-url-router-recent', JSON.stringify([{ hash: '#/session/session-abc', at: 1, source: 'visit' }])],
+  ])
+  const { env, dom } = openWithTitlebar(['session-abc'], { menuWidth: 120, storage })
+  const { input, list } = barOf(dom)
+  env.api.list('session-abc')
+  input.focus()
+  input.fire('focus', {})
+  const item = list.querySelector('[data-dsh-url-router-recent-item]')
+  let prevented = 0
+  // When the reader right-clicks it
+  item.fire('contextmenu', { preventDefault: () => { prevented += 1 } })
+  await new Promise(resolve => setTimeout(resolve, 0))
+  // Then the browser menu is still suppressed ...
+  assert.equal(prevented, 1)
+  // ... the list is still up, and the bar still holds the caret (the old copy path borrows it)
+  assert.equal(list.getAttribute('data-open'), '')
+  assert.equal(env.window.document.activeElement, input)
+  // And nothing claims a copy happened, because this host cannot copy
+  assert.equal(item.getAttribute('data-copied'), null)
 })
 
 test('the remembered count is a ceiling, and zero turns the memory off', () => {
