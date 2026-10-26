@@ -46,7 +46,7 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 
 面板内部页是**面板自己的词汇表**，本插件不发明：插件管理器发布 `data-plugin-detail` / `data-plugin-item-detail` / `data-plugin-row-detail`，任务看板发布 `data-dsh-taskboard-open-task` / `data-dsh-taskboard-new-task`，并接受同名窗口事件；自动化任务面板的三态筛选只有 `aria-pressed`（按钮上没有值），所以链接里写的是官方那三个固定值的**位置**（`all` / `active` / `inactive`），换语言不影响；任务详情用行上的 `aria-expanded` 与 `aria-describedby` 末段的 id 认，页签用它自己的 `data-detail-tab="rule|records"`。
 
-**右栏 pane 是页面旁边的一层，不是页面本身** ✓：面板自己的页现在排在 pane 前面（`#/panel/schedules/task/<id>/records`，不带上右栏就不会多出 `pane/…`），右栏收起时它那一层**直接不写**（收起的右栏会把页签留在 DOM 里，旧版因此把 `pane/client.js` 这种已经不在屏上的东西写进了地址栏）；pane 的 kind 优先读右栏控制器里的 `{kind}`，因为 Files 页签在打开文件后标题会变成文件名（`client.js`），拿标题当 kind 就是错的。
+**右栏 pane 是页面旁边的一层，不是页面本身** ✓：面板一旦有自己的页（任务详情、插件页…），地址栏就**只写那一页**（`#/panel/schedules/task/<id>/records`），旁边开着右栏也不会多出 `pane/…`；只有面板没有自己的页时才写 `pane/<kind>` ✓。右栏收起时那一层**直接不写**（收起的右栏会把页签留在 DOM 里，旧版因此把 `pane/client.js` 这种已经不在屏上的东西写进了地址栏）；pane 的 kind 优先读右栏控制器里的 `{kind}`，因为 Files 页签在打开文件后标题会变成文件名（`client.js`），拿标题当 kind 就是错的。
 
 ### 每一行都是真链接
 

@@ -2752,6 +2752,26 @@ test('an automation task link opens the task and that tab', () => {
   assert.equal(env.location.hash, '#/panel/schedules/task/schedule-abc/records')
 })
 
+test('a panel page supersedes the pane beside it', () => {
+  // Given the automation panel with one task open, and a right-bar pane in front of it
+  const dom = fakeDom([])
+  const { row } = addSchedulesPanel(dom, { pressed: 0 })
+  row.click()
+  addRightBarTab(dom, 'Files', true)
+  const env = environment({
+    panels: ['schedules'],
+    activePanelId: 'schedules',
+    sidebarRightTabs: { getSnapshot: () => ({ activeTabId: 'files' }) },
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the address bar names the task the reader is looking at, not the pane standing beside it
+  assert.equal(env.location.hash, '#/panel/schedules/task/schedule-abc')
+})
+
 test('a collapsed right bar contributes no pane to the address bar', () => {
   // Given a session on screen with a right-bar tab still mounted while the bar is collapsed
   const dom = fakeDom(['session:session-a'])
