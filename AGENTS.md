@@ -133,6 +133,18 @@
 - **任务详情** ✓：行是 `li > button`（`aria-label` = 任务名 ✓，`aria-expanded` = 是否展开 ✓，`aria-describedby` 末尾是 `-metadata-<任务 id>` ✓ 实测 ✓）；详情是 `<aside aria-label="Task details">` ✓，页签是 `button[data-detail-tab="rule|records"]` + `aria-selected` ✓（实测 ✓）。**任务 id 只能从 `aria-describedby` 的末段取** ✓（`useId` 前缀不稳定 ✓）。
 - **筛选先于任务** ✓：筛完才可能有点得到的行 ✓，所以驱动顺序固定 ✓。
 
+## 子代理路线（2026-10-26 起）
+
+子代理会话**也是会话** ✓（能打开、有轮次、有链接 ✓），但只有 id 的链接看不出它是谁的子代理 ✗（用户 2026-10-26 原话）✓。
+
+- **段位** ✓：`#/session/<子会话 id>/subagent-of/<父会话 id>` ✓（工作区形状同样适用：`#/workspace/<名>/session/<子>/subagent-of/<父>` ✓）。
+- **身份 = 子会话** ✓（打开的是它 ✓）；**父是装饰** ✓ —— 落地只比子会话 id ✓，父写错/过期也照样落地 ✓（和 workspace 名一个道理 ✓）。
+- **反映** ✓：`ctx.sessions.subagentAddress(子 id)` ✓ → `{ parentSessionId, childSessionId, mode }` ✓（**目录派生、不打开会话** ✓，官方注释就是给这类用法准备的 ✓）；拿不到就是普通会话路线 ✓（不猜 ✓）。
+- **驱动** ✓：`uiWorkspace.openSession(target)` 的 `target` 是 **`SessionTarget = SessionId | SubagentAddress`** ✓ —— 链接带了父，就传**地址对象** ✓ `{ parentSessionId, childSessionId, mode }` ✓，`mode` 从目录回读（`one-shot` / `continuable` / `unknown`）✓，回读不到就 `unknown` ✓（官方在读取子历史时解析 ✓）。**别用裸 id 打开子代理** ✗。
+- **最近列表的身份仍是子会话** ✓（`recentIdentity` 已经是 `session:<id>` ✓，装饰段不参与 ✓）。
+- **子代理不出现在侧栏** ✓（`origin === 'subagent'` 的会话被列表过滤 ✓）→ 它没有行锚点 ✓，链接来自聊天里的子代理卡片或手写 ✓。
+- 用例：`a subagent conversation says whose subagent it is` ✓、`a subagent link opens the child through its address` ✓。真机（隔离宿主 + 真实数据）实测 ✓：粘带父的链接 → 子会话打开（7 个轮次）✓、地址栏落地成同一条 ✓；只粘裸子会话 id → 地址栏**自己补回** `/subagent-of/<父>` ✓。
+
 ## 右栏 pane 的两条修正（2026-10-26 起）
 
 - **收起的右栏不算 pane** ✓：收起来时页签仍挂在 DOM 里 ✗（实测：关掉右栏后 `active` 仍返回上一个页签 ✗），所以 canonical 先问 `[data-rightbar-collapsed]` ✓（值为 `true` 或空即收起 ✓），收起时**不写 `pane/…`** ✓。会话与面板两条分支都要判 ✓（只改一条会漏 ✓）。

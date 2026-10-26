@@ -232,6 +232,8 @@ function environment(options = {}) {
     // `binding.session` is the live controller — with `loadThrough(seq)` and the `turnOutline`
     // projection on it. The reference is released when the caller is done with it.
     binding: id => ({ session: options.sessionById?.(id) }),
+    // The durable (parent, child) address the catalog keeps for a discovered subagent child.
+    subagentAddress: id => options.subagentAddressOf?.(id),
     retainScope: (id, source) => {
       const session = options.sessionById?.(id)
       if (session === undefined) return undefined
@@ -252,11 +254,13 @@ function environment(options = {}) {
   const workspaces = { list: { getSnapshot: () => ({ archivedSessionIds }) } }
   const disposers = []
   const uiWorkspace = {
-    openSession(id) {
-      assert.equal(typeof id, 'string')
-      opened.push(id)
+    // `SessionTarget = SessionId | SubagentAddress`: a subagent view is opened by its address.
+    openSession(target) {
+      const child = typeof target === 'string' ? target : target?.childSessionId
+      assert.equal(typeof child, 'string', 'openSession takes a session id or a subagent address')
+      opened.push(target)
       if (options.throwingOpenSession === true) throw new Error('openSession refused')
-      api.view(id)
+      api.view(child)
     },
   }
   const layout = {
@@ -1464,6 +1468,36 @@ function addChatSeat(dom, turn, rect = { top: 120, left: 40, width: 600, height:
   dom.body.appendChild(seat)
   return seat
 }
+
+/** The catalog address of one subagent child, in the shape the controller returns. */
+const subagentAddress = (id, parent) => ({ parentSessionId: parent, childSessionId: id, mode: 'continuable' })
+
+test('a subagent conversation says whose subagent it is', () => {
+  // Given a subagent child on screen, and the catalog knowing its parent
+  const env = environment({ subagentAddressOf: id => (id === 'session-child' ? subagentAddress(id, 'session-parent') : undefined) })
+  env.api.list('session-parent', 'session-child')
+  env.api.view('session-child')
+  // When the plugin applies
+  open(env)
+  // Then the address bar names the child and the parent it belongs to
+  assert.equal(env.location.hash, '#/session/session-child/subagent-of/session-parent')
+})
+
+test('a subagent link opens the child through its address', () => {
+  // Given a link naming a subagent child and its parent
+  const env = environment({
+    hash: '#/session/session-child/subagent-of/session-parent',
+    subagentAddressOf: id => (id === 'session-child' ? subagentAddress(id, 'session-parent') : undefined),
+  })
+  env.api.list('session-parent', 'session-child')
+  // When the plugin applies
+  open(env)
+  // Then the child was opened by address (id + parent + the catalog's mode), not by a bare id
+  const target = env.opened.find(entry => typeof entry === 'object')
+  assert.deepEqual({ ...target }, subagentAddress('session-child', 'session-parent'))
+  // And the address bar settles on the same link
+  assert.equal(env.location.hash, '#/session/session-child/subagent-of/session-parent')
+})
 
 test('a turn link whose seat is already on screen lands and keeps the turn', () => {
   // Given a conversation showing turn 5, and a link naming exactly that turn
