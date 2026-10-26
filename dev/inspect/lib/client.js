@@ -176,6 +176,25 @@ window.__ModuleLoader__.load({
 					cards: document.querySelectorAll?.(SETTINGS_CARD_SELECTOR)?.length ?? -1,
 					rowPage: document.querySelector?.('[data-plugin-row-detail]')?.getAttribute?.('data-plugin-row-detail') ?? null,
 				},
+				// Who really owns the band the bar sits in: sampled across the bar's own line, so
+				// "the bar is drawn over something" and "something is drawn over the bar" are told
+				// apart without a screenshot.
+				band: (() => {
+					if (box === null || typeof document.elementFromPoint !== 'function') return null
+					const y = Math.round(box.top + box.height / 2)
+					const samples = []
+					for (let index = 0; index <= 10; index += 1) {
+						const x = Math.round(box.left + (box.width * index) / 10)
+						const hit = document.elementFromPoint(x, y)
+						samples.push({ x, hit: describe(hit), own: hit === bar || bar?.contains?.(hit) === true })
+					}
+					return { y, samples }
+				})(),
+				detailTabs: [...(document.querySelectorAll?.('[data-detail-tab]') ?? [])].map(node => ({
+					value: node.getAttribute?.('data-detail-tab') ?? null,
+					selected: node.getAttribute?.('aria-selected') ?? null,
+					box: boxOf(node),
+				})),
 			}
 		}
 

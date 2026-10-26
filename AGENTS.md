@@ -98,7 +98,9 @@
 - **定位 = 量空白段，不是探矩形** ✓：`macLeaves()` 走一遍行内**所有真正占位的元素** ✓（有自己文字、或 `button/a/input/[role=button]/[role=tab]/img/svg`、或没有子元素 ✓）→ 只留和电源按钮同一行的 ✓ → 按左边界排序并**合并重叠** ✓ → 求所有空白段 ✓ → 取**最宽**那段 ✓ → `fitBar()` 右对齐（贴着头部按钮）+ 两侧 `MAC_BAR_INSET = 25` 内缩 ✓。
 - **宽度必须封顶** ✓（`MAC_BAR_MAX_WIDTH = 1150`）：空白段的左边界就是**会话标题文字的右边界** ✓，不封顶的话每换一个会话框就变一次宽 ✓。
 - **「探测矩形 + 一撞就隐藏」那套别再写** ✗：它把候选框放在电源按钮左侧 ✓，必然横跨头部那排按钮 ✓，于是每次都被判"不空"然后整框 `display:none` ✓ —— 这就是"框怎么都不出来"的历史 bug ✓。
-- **没有电源按钮的界面**（插件页 / 设置页 / 面板页 ✓）：沿用上一次量到的空白段 ✓，位置不动 ✓。**但要把窗口宽度一起存** ✓（`{top, viewport, gap}` ✓）：头部按钮是**右对齐**的 ✓，窗口一变它们就移动 ✓，旧空白段会把框画到标题甚至侧边栏上 ✓（真机抓到过 `bar.left=122` 而 `row.left=301` ✓）。宽度差超过 `MAC_BAR_RESIZE_SLACK = 8` 就**不猜** ✓，先隐藏，等回会话页重新量 ✓。
+- **没有电源按钮的界面**（插件页 / 设置页 / 面板页 ✓）：**按当前屏幕那一行重新量** ✓，不再沿用会话页的空白段 ✗（用户 2026-10-26 的截图：沿用旧空白段正好横压在自动化任务详情的「规则 / 任务运行记录」页签上 ✓）。做法：记住上一行的 `top` ✓，在 `[top, top + 26]` 这条带里扫**控件与标题**（`button` / `[role=tab]` / `[role=button]` / `a` / `input` / `textarea` / `select` / `h1..h3` ✓，`bandSpans()` ✓），把交点合并成占用段 ✓，**取最宽的空段**放框 ✓（`fitBar()` 右对齐 + 内缩 ✓）；一段都不够宽就**隐藏** ✓（宁可不画，也不压在可点的东西上 ✓）。
+- **窗口宽度仍要一起存** ✓（`{top, viewport, gap}` ✓）：头部按钮是**右对齐**的 ✓，窗口一变它们就移动 ✓。宽度差超过 `MAC_BAR_RESIZE_SLACK = 8` 就**不猜** ✓，先隐藏，等回会话页重新量 ✓。
+- **`MutationObserver` / `requestAnimationFrame` 一律从 `window` 取** ✓（`window.MutationObserver` / `window.requestAnimationFrame` ✓）：假 DOM 与置换过 document 的宿主里，裸全局读会静默拿不到 ✓（踩过 ✓）。
 - **只有一个框** ✓：挂载前先 `getElementById` 摘掉同 id 的旧 bar 和旧样式表 ✓ —— effect 重跑（热重载 / 重复 apply）不会多一个 ✓。
 - **调试不在产品里** ✓：`dev/inspect/` 是一个**独立观察器插件** ✓（`private: true`，靠根 `files` 白名单不进 npm ✓），只读公开契约（`#dsh-url-router-titlebar`、`data-dsh-url-router-platform`、`[class*="titleRow"]`、`.dshpm-trigger`）✓。判据三条：`bars` 恒为 1 ✓、`onTop` ✓、`leaves` 有没有被压住 ✓。**别再把调试代码写回 `lib/client.js`** ✗ —— 发布物必须是跑过测试的那一份 ✓。
 - **假 DOM 不支持 `#id` 选择器** ✗：mac 侧的新代码对 `getElementById` / `querySelectorAll` 全部用了可选调用 ✓，测试里缺失即跳过 ✓。

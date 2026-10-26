@@ -204,6 +204,9 @@ function environment(options = {}) {
     // protocol off the global and the bar's preferences off localStorage.
     location,
     localStorage,
+    // The window's own size, which the bar reads to decide whether a remembered stretch still
+    // belongs to this window.
+    innerWidth: options.innerWidth ?? 1440,
     navigator: {
       userAgent: options.userAgent ?? '',
       // A clipboard service only where a test asks for one, the way a secure page has it.
@@ -2770,6 +2773,54 @@ test('a panel page supersedes the pane beside it', () => {
   open(env)
   // Then the address bar names the task the reader is looking at, not the pane standing beside it
   assert.equal(env.location.hash, '#/panel/schedules/task/schedule-abc')
+})
+
+/** A macOS desktop window whose bar is mounted (the marker the shell sets is absent). */
+function openMacBar(options = {}) {
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  const env = environment({ ...options, protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  return { env, dom }
+}
+
+test('on a screen without a header row the bar gives way to what the page draws there', () => {
+  // Given a macOS window whose remembered stretch reaches across a page's own tab strip
+  const storage = new Map([
+    ['dsh-url-router-placement', JSON.stringify({ top: 12, viewport: 1440, gap: { left: 660, right: 1820 } })],
+  ])
+  const { dom } = openMacBar({ storage })
+  const strip = dom.document.createElement('button')
+  strip.getBoundingClientRect = () => ({ top: 8, left: 1280, width: 685, height: 44 })
+  dom.body.appendChild(strip)
+  triggerObservers(dom)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const left = Number.parseInt(bar.style.left, 10)
+  const width = Number.parseInt(bar.style.width, 10)
+  // Then the bar stops short of the strip instead of being drawn across it ...
+  assert.equal(bar.style.display, '')
+  assert.ok(Number.isFinite(left) && Number.isFinite(width))
+  assert.ok(left + width <= 1280, `bar ends at ${left + width}, the strip begins at 1280`)
+  // ... and it is still long enough to be usable
+  assert.ok(width >= 120, `width ${width}`)
+})
+
+test('a band the bar cannot fit beside hides it instead of covering anything', () => {
+  // Given a page whose content fills the whole line
+  const storage = new Map([
+    ['dsh-url-router-placement', JSON.stringify({ top: 12, viewport: 1440, gap: { left: 660, right: 1820 } })],
+  ])
+  const { dom } = openMacBar({ storage })
+  const strip = dom.document.createElement('button')
+  strip.getBoundingClientRect = () => ({ top: 0, left: 0, width: 1440, height: 60 })
+  dom.body.appendChild(strip)
+  triggerObservers(dom)
+  // Then the bar is hidden rather than drawn over the content
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  assert.equal(bar.style.display, 'none')
 })
 
 test('a collapsed right bar contributes no pane to the address bar', () => {
