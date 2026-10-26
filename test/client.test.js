@@ -3125,6 +3125,96 @@ test('a workspace-shaped conversation link also takes the column back from a pan
   assert.equal(env.location.hash, '#/session/session-abc')
 })
 
+/** The settings overlay's models section: provider cards whose actions carry the provider id. */
+function addModelsOverlay(dom, options = {}) {
+  const overlay = dom.document.createElement('div')
+  overlay.setAttribute('data-shortcut-modal', 'settings')
+  const nav = dom.document.createElement('nav')
+  const section = dom.document.createElement('button')
+  section.setAttribute('aria-current', 'true')
+  section.textContent = '模型'
+  section.click = () => { section.clicked = (section.clicked ?? 0) + 1 }
+  nav.appendChild(section)
+  overlay.appendChild(nav)
+  const providers = options.providers ?? [
+    { id: 'apigoto', name: 'APIGOTO' },
+    { id: 'clinepass', name: 'ClinePass' },
+  ]
+  const openEditor = (card, id) => {
+    if (card.querySelector('input') !== null) return
+    const editor = dom.document.createElement('div')
+    editor.setAttribute('data-editor', id)
+    const field = dom.document.createElement('input')
+    field.setAttribute('aria-label', 'API 密钥')
+    editor.appendChild(field)
+    card.appendChild(editor)
+  }
+  const cards = providers.map(entry => {
+    const card = dom.document.createElement('li')
+    const edit = dom.document.createElement('button')
+    edit.setAttribute('aria-label', `编辑 ${entry.name} (${entry.id})`)
+    edit.textContent = '编辑'
+    edit.click = () => openEditor(card, entry.id)
+    const remove = dom.document.createElement('button')
+    remove.setAttribute('aria-label', `删除 ${entry.name} (${entry.id})`)
+    remove.textContent = '删除'
+    card.appendChild(edit)
+    card.appendChild(remove)
+    if (options.open === entry.id) openEditor(card, entry.id)
+    overlay.appendChild(card)
+    return { card, edit, remove }
+  })
+  dom.body.appendChild(overlay)
+  return { overlay, section, cards }
+}
+
+test('an open provider card is named in the address bar by its provider id', () => {
+  // Given the models section with one provider card whose editor is open
+  const dom = fakeDom(['session:session-abc'])
+  addModelsOverlay(dom, { open: 'clinepass' })
+  const env = environment()
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-abc')
+  env.api.view('session-abc')
+  // When the plugin applies
+  open(env)
+  // Then the link names the section and that card — by the provider id, not by its label
+  assert.equal(env.location.hash, '#/settings/%E6%A8%A1%E5%9E%8B/provider/clinepass')
+})
+
+test("a provider link opens that card editor", () => {
+  // Given a link naming one provider card
+  const dom = fakeDom([])
+  const { cards } = addModelsOverlay(dom)
+  const env = environment({ hash: '#/settings/模型/provider/apigoto' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies and the page reports what it opened
+  open(env)
+  triggerObservers(dom)
+  // Then that card's edit control was used, and the address bar settles on the link
+  assert.ok(cards[0].card.querySelector('input') !== null, 'the first card must be open')
+  assert.equal(cards[1].card.querySelector('input'), null)
+  assert.equal(env.location.hash, '#/settings/%E6%A8%A1%E5%9E%8B/provider/apigoto')
+})
+
+test('a section link is satisfied while one of its provider cards is open', () => {
+  // Given a link that names only the section, and a card open inside it
+  const dom = fakeDom([])
+  addModelsOverlay(dom, { open: 'apigoto' })
+  const env = environment({ hash: '#/settings/模型' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the section link is not fought over: the address bar names the card that is really open
+  assert.equal(env.location.hash, '#/settings/%E6%A8%A1%E5%9E%8B/provider/apigoto')
+})
+
 test('the settings overlay is named under the official marker and still under the theming one', () => {
   // Given the settings overlay is up, under the official marker or the one a third-party theming
   // plugin stamps onto the same element (the latter is not a contract — official marker first)

@@ -41,6 +41,7 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 | `#/panel/schedules/filter/<all\|active\|inactive>` | 自动化任务的状态筛选（已开启 / 已结束；默认的 `all` 不写进链接） | 面板自己的筛选按钮（按位置，语言无关） |
 | `#/panel/schedules/task/<任务 id>` | 自动化任务里某条任务的详情（规则页） | 面板自己的任务行 |
 | `#/panel/schedules/task/<任务 id>/records` | 同一条任务的「运行记录」页（默认的 `rule` 不写） | 面板详情里的页签 |
+| `#/settings/<分区>/provider/<提供商 id>` | 模型页里点了「编辑」展开的那张提供商卡片（id 是配置里的 key，不是显示名） | 卡片自己的「编辑」按钮 |
 
 输入侧宽容：`sessions`/`panels` 复数、百分号编码都接受，一律规范化成上面的形式。**不认识的段位不碰**，只留一条诊断（留给以后的路由器，或者别的插件写的深链形态 ✓ —— 一个 fragment 只能有一个写者 ✓，所以读到不属于本插件的形态时会**明确说一句**，而不是静默 ✗）。
 
@@ -156,6 +157,7 @@ Listed in the community plugin index: [zhu1090093659/dsh-community-plugins](http
 | `#/panel/schedules/filter/<all\|active\|inactive>` | the automation list's status filter (the default `all` is not written) |
 | `#/panel/schedules/task/<id>` | one automation task's detail (its rules tab) |
 | `#/panel/schedules/task/<id>/records` | that task's records tab (the default `rule` is not written) |
+| `#/settings/<section>/provider/<provider id>` | the provider card whose editor is open in Models (the id from the config, not the display name) |
 | `#/panel/plugins/<package>` | an installed plugin's page |
 | `#/panel/plugins/<item>` | a built-in plugin's page (`shell`, `agent-loop`, `subagent`, `web-search`) |
 | `#/panel/plugins/<package>/<component>` | one component page inside that plugin's page |

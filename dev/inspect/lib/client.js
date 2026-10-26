@@ -190,6 +190,30 @@ window.__ModuleLoader__.load({
 					}
 					return { y, samples }
 				})(),
+				// The settings overlay's own cards, structurally: the models section has no public
+				// hook on a provider row, so its real DOM is dumped here while a route is designed.
+				cardDump: (() => {
+					const overlay = document.querySelector?.('[data-shortcut-modal="settings"]')
+					if (overlay === null || overlay === undefined) return null
+					const cards = [...(overlay.querySelectorAll?.('li') ?? [])].slice(0, 3)
+					if (cards.length === 0) return null
+					return cards.map(card => {
+						const attrs = {}
+						for (const attr of card.attributes ?? []) attrs[attr.name] = String(attr.value).slice(0, 40)
+						const nodes = []
+						const walk = (el, depth) => {
+							if (depth > 4 || nodes.length > 40) return
+							for (const child of el.children ?? []) {
+								const own = {}
+								for (const attr of child.attributes ?? []) own[attr.name] = String(attr.value).slice(0, 40)
+								nodes.push({ tag: child.tagName.toLowerCase(), attrs: own, text: (child.textContent ?? '').trim().slice(0, 24) })
+								walk(child, depth + 1)
+							}
+						}
+						walk(card, 0)
+						return { attrs, nodes }
+					})
+				})(),
 				detailTabs: [...(document.querySelectorAll?.('[data-detail-tab]') ?? [])].map(node => ({
 					value: node.getAttribute?.('data-detail-tab') ?? null,
 					selected: node.getAttribute?.('aria-selected') ?? null,
