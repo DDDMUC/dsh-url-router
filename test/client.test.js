@@ -2402,16 +2402,39 @@ test('a burst of notifications inside one frame collapses into one scan', () => 
   dom.body.appendChild(first)
   dom.body.appendChild(second)
   // When three batches arrive before the frame runs
-  notify(dom, [{ type: 'childList', addedNodes: [first], removedNodes: [] }])
-  notify(dom, [{ type: 'childList', addedNodes: [second], removedNodes: [] }])
-  notify(dom, [{ type: 'childList', addedNodes: [second], removedNodes: [] }])
-  // Then the scan waited for the frame: nothing is linked and exactly one pass is queued
+  const scans = countQueries(dom.document, '[data-row-key^="session:"]', () => {
+    notify(dom, [{ type: 'childList', addedNodes: [first], removedNodes: [] }])
+    notify(dom, [{ type: 'childList', addedNodes: [second], removedNodes: [] }])
+    notify(dom, [{ type: 'childList', addedNodes: [second], removedNodes: [] }])
+  })
+  // Then the scan waited for the frame: nothing is linked and no pass ran yet
+  assert.equal(scans, 0, 'a burst must not scan before its frame')
   assert.equal(first.querySelector('[data-dsh-part="url-router-link"]'), null)
-  assert.equal(frames.length, 1, 'a burst must schedule exactly one scan')
-  // And when the frame runs, both rows are links
-  for (const frame of frames.splice(0)) frame()
+  // And one frame later both rows are links, from a single pass over the rows
+  const passes = countQueries(dom.document, '[data-row-key^="session:"]', () => {
+    for (const frame of frames.splice(0)) frame()
+  })
+  assert.equal(passes, 1, 'a burst must collapse into exactly one scan')
   assert.equal(first.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-first')
   assert.equal(second.querySelector('[data-dsh-part="url-router-link"]').getAttribute('href'), '#/session/session-second')
+})
+
+test('a burst of DOM notifications collapses into one reconcile', () => {
+  // Given a page whose frames can be driven by hand, and the reporter's own work counters
+  const { env, dom } = openWithDom(['session:session-abc'])
+  const frames = []
+  env.window.requestAnimationFrame = handler => { frames.push(handler); return frames.length }
+  const reconciles = () => env.window.__dshUrlRouter.report().work.reconciles
+  const before = reconciles()
+  // When several batches land inside one frame
+  notify(dom, [{ type: 'childList', addedNodes: [], removedNodes: [] }])
+  notify(dom, [{ type: 'childList', addedNodes: [], removedNodes: [] }])
+  notify(dom, [{ type: 'childList', addedNodes: [], removedNodes: [] }])
+  // Then nothing re-reads the view before the frame ...
+  assert.equal(reconciles(), before)
+  // ... and the one frame reconciles exactly once, whatever the batches were
+  for (const frame of frames.splice(0)) frame()
+  assert.equal(reconciles() - before, 1)
 })
 
 test('one scan reads the workspace tree once, however many rows it links', () => {
@@ -3199,6 +3222,42 @@ test("a provider link opens that card editor", () => {
   assert.ok(cards[0].card.querySelector('input') !== null, 'the first card must be open')
   assert.equal(cards[1].card.querySelector('input'), null)
   assert.equal(env.location.hash, '#/settings/%E6%A8%A1%E5%9E%8B/provider/apigoto')
+})
+
+test('a provider link never toggles an already-open card shut', () => {
+  // Given the card the link names is already open, and its edit control would close it
+  const dom = fakeDom([])
+  const { cards } = addModelsOverlay(dom, { open: 'apigoto' })
+  let closes = 0
+  cards[0].edit.click = () => { closes += 1 }
+  const env = environment({ hash: '#/settings/模型/provider/apigoto' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the link is driven
+  open(env)
+  triggerObservers(dom)
+  // Then the control was left alone and the address bar names the card that is open
+  assert.equal(closes, 0)
+  assert.equal(env.location.hash, '#/settings/%E6%A8%A1%E5%9E%8B/provider/apigoto')
+})
+
+test('a task link outside the shown filter widens the list instead of failing', () => {
+  // Given the automation list showing "inactive" while the link names an active task
+  const dom = fakeDom([])
+  const { buttons, row } = addSchedulesPanel(dom, { pressed: 2 })
+  // ... and that filter is hiding it, so the list holds no such row
+  row.remove()
+  const env = environment({ hash: '#/panel/schedules/task/schedule-abc', panels: ['schedules'], activePanelId: 'schedules' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the link is driven
+  open(env)
+  triggerObservers(dom)
+  // Then the list was widened back to "all" so the row can be found on the next try
+  assert.equal(buttons[0].getAttribute('aria-pressed'), 'true')
+  assert.equal(buttons[2].getAttribute('aria-pressed'), 'false')
 })
 
 test('a section link is satisfied while one of its provider cards is open', () => {
