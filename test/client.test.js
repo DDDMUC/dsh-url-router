@@ -2669,6 +2669,47 @@ function barOf(dom) {
   }
 }
 
+/** A storage map with the plugin's preferences already written. */
+function storedSettings(patch) {
+  return new Map([['dsh-url-router-settings', JSON.stringify(patch)]])
+}
+
+test('the bar is visible by default, and hides until hovered when asked', () => {
+  // Given the default preferences: the bar is always there
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  const { bar } = barOf(dom)
+  assert.equal(bar.getAttribute('data-dsh-url-router-hover'), null)
+  // Neither the hover state nor the reveal is written: the bar is simply on screen.
+  assert.equal(bar.getAttribute('data-dsh-url-router-shown'), null)
+})
+
+test('with the hover preference the bar appears under the pointer only', () => {
+  // Given a window that asked for the hover behaviour
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage: storedSettings({ hoverReveal: true }) })
+  const { bar } = barOf(dom)
+  // Then it sits in the hover state, hidden until the pointer arrives
+  assert.equal(bar.getAttribute('data-dsh-url-router-hover'), '')
+  assert.equal(bar.getAttribute('data-dsh-url-router-shown'), null)
+  // When the pointer is over it, it shows ...
+  bar.fire('mouseenter', {})
+  assert.equal(bar.getAttribute('data-dsh-url-router-shown'), '')
+  // ... and when the pointer leaves without focus, it hides again
+  bar.fire('mouseleave', {})
+  assert.equal(bar.getAttribute('data-dsh-url-router-shown'), null)
+})
+
+test('a focused bar stays visible after the pointer leaves', () => {
+  // Given the hover behaviour, with the reader typing in the bar
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage: storedSettings({ hoverReveal: true }) })
+  const { bar, input } = barOf(dom)
+  bar.fire('mouseenter', {})
+  input.focus()
+  input.fire('focus', {})
+  // When the pointer leaves, the bar has to stay: the field still has the reader's caret
+  bar.fire('mouseleave', {})
+  assert.equal(bar.getAttribute('data-dsh-url-router-shown'), '')
+})
+
 test('the first click on the address bar selects the whole link', () => {
   // Given a desktop window whose bar is not focused and already names a screen
   const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })

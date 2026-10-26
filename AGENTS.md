@@ -107,7 +107,8 @@
 
 ## 地址栏偏好契约（2026-10-26 起，改之前先读）
 
-- **两个偏好在 `localStorage`** ✓：`dsh-url-router-settings` = `{selectAllOnFocus, recentLimit}` ✓（默认 `true` / `8` ✓）；`dsh-url-router-recent` = `[{hash, at, source}]`，最新在前 ✓，`source` 是 `visit` | `paste` ✓。它们**不属于 profile** ✓（是"这台机器这个窗口"的偏好 ✓），所以没有进 `dsh.profile`，也没有宿主接口 ✓。
+- **三个偏好在 `localStorage`** ✓：`dsh-url-router-settings` = `{selectAllOnFocus, hoverReveal, recentLimit}` ✓（默认 `true` / `false` / `8` ✓）；`dsh-url-router-recent` = `[{hash, at, source}]`，最新在前 ✓，`source` 是 `visit` | `paste` ✓。它们**不属于 profile** ✓（是"这台机器这个窗口"的偏好 ✓），所以没有进 `dsh.profile`，也没有宿主接口 ✓。
+- **悬浮才显示** ✓（2026-10-27）：`hoverReveal` 为开时，bar 带 `data-dsh-url-router-hover` ✓，**只降透明度**（`opacity:0` ✓，**别动 `pointer-events`** ✗ —— 元素还得能被悬浮到，那正是"传感器" ✓）。`:hover` 不用 CSS 判定：JS 在 bar 的 `mouseenter` / `mouseleave` 上写 `data-dsh-url-router-shown` ✓（列表是 bar 的子元素 ✓，指针进列表不会触发父级 `mouseleave` ✓）；输入框 `focus` 也点亮 ✓；`blur` 走 **0ms 超时**再收 ✓（列表项的 `mousedown` 会 `preventDefault`，但同一次任务里布尔的焦点状态还没落定 ✓）；列表开着不收 ✓。偏好切换通过 `subscribeSettings` 实时应用 ✓（不必重启 ✓）。**mac 与 Windows 两套样式表都要加** ✓（两个常量各自一份 ✓）。
 - **首次点击全选** ✓：未聚焦时的 `mousedown` 里 `preventDefault` + `focus()` + `select()` ✓ —— 只 preventDefault 不 select 没用 ✓，只 select 不 preventDefault 也没用 ✓（按下落光标那条默认行为会把选区抹掉 ✓）。**已聚焦时再点必须是普通光标行为** ✓（否则拖选与定位全废 ✓）。`focus` 事件那条路也要选 ✓（Tab / 脚本聚焦 ✓）。
 - **当前链接不能当过滤词** ✗：框里平时就写着当前界面 ✓ —— 按 `input.value` 过滤会在聚焦瞬间把列表清空 ✓（踩过 ✓）。**只有读者真的编辑过（`input` 事件）才过滤** ✓（`narrowed` 标志 ✓）。
 - **最近列表的身份 = 界面** ✓，不是坐标 ✓：`recentIdentity()` 把 `turn` / `row` / `view` / `pane` / 面板内部页都归并到所在表面 ✓（`workspace` 形状取里面的会话 id ✓）。否则在一个对话里点几十行就把列表刷满 ✓。**当前屏幕不列出** ✓。

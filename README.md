@@ -80,13 +80,14 @@ macOS 的标题栏是**原生**的（左边红黄绿三个灯），页面里没�
 - 输入什么 ✓：任何 `#/…` 路由（会话 / 工作区 / 视图 / 轮次 / 行 / 面板 / 设置三层 / 右栏 pane）、**裸会话 id**、或**整条链接**（只取它的 fragment）✓；回车写 hash → 浏览器触发 `hashchange` → 落地走的就是"粘贴链接"那条已验证的路 ✓。
 - 它同时是**反映** ✓：本插件每次写地址栏都会同步进这个框 ✓，所以它显示的就是"现在在哪" ✓。Escape 还原 ✓；认不出的文本不动地址栏 ✓。
 
-### 设置页：地址栏的两个偏好
+### 设置页：地址栏的三个偏好
 
-在**插件管理器**里找到本插件那一行 → 右侧的配置箭头（也就是 `#/panel/plugins/dsh-url-router/dsh-url-router`）就是本插件的设置页。两个偏好跟着这台机器走（`localStorage`），改完立刻生效，不用重启：
+在**插件管理器**里找到本插件那一行 → 右侧的配置箭头（也就是 `#/panel/plugins/dsh-url-router/dsh-url-router`）就是本插件的设置页。三个偏好跟着这台机器走（`localStorage`），改完立刻生效，不用重启：
 
 | 偏好 | 默认 | 说明 |
 | --- | --- | --- |
 | 首次点击地址栏时全选 | 开 | 像浏览器地址栏：**第一次**点进去，框里原来的链接整条选中，直接输入就替换它；已经聚焦时再点，才是放光标。关掉后就是一个普通文本框。 |
+| 悬浮时才显示地址栏 | 关 | 平时隐去（只降透明度，位置和尺寸都不变），鼠标移到地址栏所在的位置才出现；输入框有焦点、或最近列表开着时不会消失。 |
 | 记住最近链接的条数 | 8 | **下拉框里能看到的条数**（地址栏里正显示的那个界面不算 —— 它已经在你眼前了，离开之后才会回到列表）。最低 **0**（= 不记忆，地址栏也不再弹最近列表），**没有上限**。 |
 
 最近列表的用法与浏览器一致：点地址栏就弹出来，输入即过滤，Esc 关掉；条目有两个来源 —— **用过的界面**（本插件写进地址栏的每一个界面 ✓）和**粘贴过的链接**（在地址栏里粘贴任何本插件认得的链接或裸会话 id ✓，落地与否都先记住 ✓）。
@@ -184,13 +185,14 @@ The Windows desktop window draws its own title bar **inside the page**: the prel
 - Accepts any `#/…` route, a bare conversation id, or a whole link (only its fragment is used); Enter writes the hash, the browser fires `hashchange`, and the link lands through the very same path a pasted link takes.
 - It also **reflects**: every write this plugin makes to the address bar is mirrored into the box, so it always names what is on screen. Escape restores it; text that names no route is refused.
 
-### Settings: the address bar's two preferences
+### Settings: the address bar's three preferences
 
-Find this plugin's row in the **plugin manager** and press its configure control (or open `#/panel/plugins/dsh-url-router/dsh-url-router` directly) — that page is this plugin's settings. Both preferences live on this machine (`localStorage`) and take effect the moment they change, no restart:
+Find this plugin's row in the **plugin manager** and press its configure control (or open `#/panel/plugins/dsh-url-router/dsh-url-router` directly) — that page is this plugin's settings. All three preferences live on this machine (`localStorage`) and take effect the moment they change, no restart:
 
 | Preference | Default | Meaning |
 | --- | --- | --- |
 | Select the whole link on the first click | on | Like a browser's address bar: the **first** click selects everything already in the box, so typing replaces the old link; a further click once the box is focused places the caret. Turned off, it is an ordinary text field. |
+| Show the bar on hover | off | Hidden until the pointer is over it — only the opacity drops, so the spot it occupies and its size stay the same. A focused field or an open recent list keeps it visible. |
 | Remembered links | 8 | How many links the drop-down lists (the screen already in the address bar does not count — it is where you are; it returns to the list once you leave it). The floor is **0** (no memory, and no recent list), and there is **no ceiling**. |
 
 The recent list behaves like a browser's: focusing the bar opens it, typing narrows it, Escape closes it. Entries come from two places — **the screens this plugin named** (every view it wrote into the address bar) and **the links pasted into the bar** (anything it can open, remembered whether or not it lands).
