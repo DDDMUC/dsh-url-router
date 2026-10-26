@@ -33,11 +33,17 @@ window.__ModuleLoader__.load({
 		/** Where the same report is parked when no collector is running. */
 		const STORE_KEY = 'dsh-url-router-debug'
 		/** Names this build, so a stale window is told apart from a fresh one. */
-		const BUILD = 'inspect-observer'
+		const BUILD = 'inspect-observer+prefs'
 		/** The row the bar is meant to live in, as the shell names it. */
 		const ROW_SELECTOR = '[class*="titleRow"]'
 		/** The button the bar aligns itself to. */
 		const TRIGGER_SELECTOR = '.dshpm-trigger'
+		/** The settings card this plugin renders on its row page in the plugin manager. */
+		const SETTINGS_CARD_SELECTOR = '[data-plugin-config] .dshur'
+		/** The address bar's own recent list (a child of the bar). */
+		const RECENT_LIST_SELECTOR = '[data-dsh-url-router-recent]'
+		/** One remembered link in that list. */
+		const RECENT_ITEM_SELECTOR = '[data-dsh-url-router-recent-item]'
 		/** How often a report is written at most, so a busy page cannot flood the collector. */
 		const REPORT_EVERY_MS = 400
 
@@ -153,6 +159,17 @@ window.__ModuleLoader__.load({
 				row: boxOf(row),
 				trigger: boxOf(trigger),
 				leaves: row === null ? [] : leavesOf(row, 0),
+				// Which screen the window is on, and the two new surfaces: the recent list a
+				// focused bar shows, and the settings card on this plugin's row page.
+				hash: String(window.location?.hash ?? ''),
+				recent: {
+					open: (document.querySelector?.(RECENT_LIST_SELECTOR)?.getAttribute?.('data-open') ?? null) !== null,
+					items: document.querySelectorAll?.(RECENT_ITEM_SELECTOR)?.length ?? -1,
+				},
+				settings: {
+					cards: document.querySelectorAll?.(SETTINGS_CARD_SELECTOR)?.length ?? -1,
+					rowPage: document.querySelector?.('[data-plugin-row-detail]')?.getAttribute?.('data-plugin-row-detail') ?? null,
+				},
 			}
 		}
 

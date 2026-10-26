@@ -30,6 +30,17 @@ const BUNDLE_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'lib', '
 const BUNDLE_SOURCE = readFileSync(BUNDLE_PATH, 'utf8')
 const START = 1_000_000
 
+/**
+ * The loader's `react` entry. The browser half uses it for the plugin manager's
+ * settings card only; no test renders that card, but the module must be able to ask.
+ */
+const fakeReact = {
+  createElement: (type, props, ...children) => ({ type, props, children }),
+  useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}],
+  useEffect: () => {},
+  useMemo: build => build(),
+}
+
 /** Split a URL into the location fields the plugin reads. */
 function splitUrl(url) {
   const match = /^([^?#]*)(\?[^#]*)?(#.*)?$/.exec(url)
@@ -46,6 +57,18 @@ function environment(options = {}) {
     pathname: options.pathname ?? '/',
     search: options.search ?? '',
     hash: options.hash ?? '',
+    protocol: options.protocol ?? 'http:',
+  }
+  // The address bar's own preferences live on this machine, so the page needs a
+  // localStorage of its own; a caller may hand one in to prove they survive a reload.
+  const storage = options.storage ?? new Map()
+  const localStorage = {
+    getItem: key => (storage.has(key) ? storage.get(key) : null),
+    setItem: (key, value) => { storage.set(key, String(value)) },
+    removeItem: key => { storage.delete(key) },
+    clear: () => storage.clear(),
+    key: index => [...storage.keys()][index] ?? null,
+    get length() { return storage.size },
   }
   const listeners = new Map()
   const timers = new Map()
@@ -177,11 +200,21 @@ function environment(options = {}) {
     Date: { now: () => clock },
     setTimeout: window.setTimeout,
     clearTimeout: window.clearTimeout,
+    // In a page these are the same objects the window holds; the bundle reads the
+    // protocol off the global and the bar's preferences off localStorage.
+    location,
+    localStorage,
+    navigator: { userAgent: options.userAgent ?? '' },
   })
   vm.runInContext(BUNDLE_SOURCE, context, { filename: 'lib/client.js' })
   assert.ok(captured !== undefined, 'the bundle must register itself with the module loader')
   assert.equal(captured.id, 'dsh-url-router')
-  const moduleExports = captured.factory()
+  // The loader hands the browser half its dependencies; the only one it asks for is
+  // React, and only the settings card needs it.
+  const moduleExports = captured.factory(specifier => {
+    if (specifier === 'react') return fakeReact
+    throw new Error(`the bundle asked for an unexpected module: ${specifier}`)
+  })
 
   const sessions = {
     // The controller a root plugin can reach. `binding(id)` answers undefined for a session
@@ -247,6 +280,9 @@ function environment(options = {}) {
         if (key !== 'sidebar.panellist') return []
         return (options.panels ?? []).map(panel => ({ options: panel }))
       },
+      // The slot service's own registration half, for the tests that watch the settings
+      // card being registered: a caller supplies `inject` / `register` to receive it.
+      ...(options.slotsApi ?? {}),
     }
   const ctx = {
     effect(fn) {
@@ -537,7 +573,21 @@ function fakeDom(initialKeys) {
     getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null }
     removeAttribute(name) { this.attributes.delete(name) }
     appendChild(child) { child.parentElement = this; this.children.push(child); return child }
+    removeChild(child) {
+      this.children = this.children.filter(candidate => candidate !== child)
+      child.parentElement = null
+      return child
+    }
     get firstChild() { return this.children[0] ?? null }
+    /** An input's own selection: the fake only counts it (the bar calls `select`). */
+    focus() {
+      if (this.ownerDocument !== undefined) this.ownerDocument.activeElement = this
+      return true
+    }
+    select() {
+      this.selections = (this.selections ?? 0) + 1
+      return true
+    }
     insertBefore(node, reference) {
       const index = reference === null ? this.children.length : this.children.indexOf(reference)
       this.children.splice(index < 0 ? this.children.length : index, 0, node)
@@ -630,7 +680,13 @@ if (notHidden !== null) {
     body,
     head,
     documentElement: body,
-    createElement: tag => new Node(tag),
+    /** What has focus, the way the DOM tracks it: the bar asks before it re-selects. */
+    activeElement: null,
+    createElement: tag => {
+      const node = new Node(tag)
+      node.ownerDocument = document
+      return node
+    },
     createElementNS: (_namespace, tag) => new Node(tag),
     querySelector: selector => body.descendants().find(node => node.matches(selector)) ?? null,
     querySelectorAll: selector => body.descendants().filter(node => node.matches(selector)),
@@ -940,6 +996,41 @@ test('a detail page that never opens is dropped at expiry with one diagnostic', 
   env.api.advance(8000)
   assert.equal(env.location.hash, '#/panel/plugins')
   assert.equal(env.warnings.filter(w => w.includes('nope')).length, 1)
+})
+
+test('a component link never presses a plugin row\'s enable switch', () => {
+  // Given a package page whose component row carries only its own enable switch: the
+  // row has no configuration entry, so there is nothing to open
+  const dom = fakeDom([])
+  const { panel } = addPluginRow(dom, 'dsh-url-router')
+  const detail = dom.document.createElement('div')
+  detail.setAttribute('data-plugin-detail', 'dsh-url-router')
+  panel.appendChild(detail)
+  const row = dom.document.createElement('li')
+  row.setAttribute('data-plugin-row', 'include:dsh-url-router')
+  const toggle = dom.document.createElement('button')
+  toggle.setAttribute('role', 'switch')
+  toggle.setAttribute('aria-checked', 'true')
+  toggle.setAttribute('aria-label', 'Enable component dsh-url-router')
+  let toggles = 0
+  toggle.click = () => { toggles += 1 }
+  row.appendChild(toggle)
+  panel.appendChild(row)
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // When a link names that component page
+  env.api.navigate('#/panel/plugins/dsh-url-router/dsh-url-router')
+  // Then the switch was left alone: a link opens a page, it never changes a plugin ...
+  assert.equal(toggles, 0)
+  // ... and the unreachable page is dropped at expiry, with one diagnostic, while the
+  // address bar goes back to naming the package page that is actually on screen
+  env.api.advance(8000)
+  assert.equal(toggles, 0)
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-url-router')
+  assert.equal(env.warnings.filter(w => w.includes('dsh-url-router')).length, 1)
 })
 
 test('a hashchange to a detail link drives the panel at runtime', () => {
@@ -2392,6 +2483,181 @@ test('disposal removes the desktop address bar and its stylesheet', () => {
   // Then nothing of the bar is left in the page
   assert.equal(dom.body.querySelector('[data-dsh-part="url-router-address-bar"]'), null)
   assert.equal(dom.head.children.some(node => node.id === 'dsh-url-router-titlebar-style'), false)
+})
+
+/** The address bar of a desktop window that was just mounted. */
+function barOf(dom) {
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  assert.ok(bar !== null, 'the desktop strip must carry the address bar')
+  return {
+    bar,
+    input: bar.querySelector('input'),
+    list: bar.querySelector('[data-dsh-url-router-recent]'),
+  }
+}
+
+test('the first click on the address bar selects the whole link', () => {
+  // Given a desktop window whose bar is not focused and already names a screen
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  const { input } = barOf(dom)
+  let prevented = 0
+  // When the bar is clicked for the first time
+  input.fire('mousedown', { preventDefault: () => { prevented += 1 } })
+  // Then the press did not drop a caret into the middle of the old link ...
+  assert.equal(prevented, 1)
+  // ... and the whole link is selected, the way a browser's address bar does it
+  assert.equal(input.selections, 1)
+  // And a second click inside the focused bar places the caret as usual
+  input.fire('mousedown', { preventDefault: () => { prevented += 1 } })
+  assert.equal(prevented, 1)
+  assert.equal(input.selections, 1)
+})
+
+test('selecting the whole link can be switched off', () => {
+  // Given a machine where the settings page turned the preference off
+  const storage = new Map([['dsh-url-router-settings', JSON.stringify({ selectAllOnFocus: false })]])
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  const { input } = barOf(dom)
+  let prevented = 0
+  // When the bar is clicked
+  input.fire('mousedown', { preventDefault: () => { prevented += 1 } })
+  // Then the press behaves like any text field's ...
+  assert.equal(prevented, 0)
+  assert.equal(input.selections ?? 0, 0)
+  // ... and focus by any other route does not select either (keyboard, tab, a script)
+  input.fire('focus', {})
+  assert.equal(input.selections ?? 0, 0)
+})
+
+test('the bar remembers the screens it named, newest first, and never offers the one in front', () => {
+  // Given a desktop window whose view moves between two conversations
+  const storage = new Map()
+  const { env, dom } = openWithTitlebar(['session:session-abc', 'session:session-def'], { menuWidth: 120, storage })
+  const { input, list } = barOf(dom)
+  env.api.list('session-abc', 'session-def')
+  env.api.view('session-abc')
+  env.api.view('session-def')
+  // Then both screens are remembered, the newest first
+  const stored = JSON.parse(storage.get('dsh-url-router-recent'))
+  assert.deepEqual(stored.map(entry => entry.hash), ['#/session/session-def', '#/session/session-abc'])
+  assert.deepEqual(stored.map(entry => entry.source), ['visit', 'visit'])
+  // When the bar is focused, it offers the remembered screens — except the one on screen
+  input.fire('focus', {})
+  assert.notEqual(list.getAttribute('data-open'), null)
+  const items = list.querySelectorAll('[data-dsh-url-router-recent-item]')
+  assert.deepEqual(items.map(item => item.getAttribute('data-dsh-url-router-recent-item')), ['#/session/session-abc'])
+  // And going back to a screen already remembered moves it up instead of adding it twice
+  env.api.view('session-abc')
+  assert.deepEqual(
+    JSON.parse(storage.get('dsh-url-router-recent')).map(entry => entry.hash),
+    ['#/session/session-abc', '#/session/session-def'],
+  )
+})
+
+test('a link into a position inside a screen is remembered as that screen', () => {
+  // Given a bar whose view already named one conversation
+  const storage = new Map()
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  const { input, list } = barOf(dom)
+  env.api.list('session-abc')
+  env.api.view('session-abc')
+  // When a link into a turn of that same conversation is pasted
+  input.fire('paste', { clipboardData: { getData: () => 'https://example.test/#/session/session-abc/turn/3' } })
+  const stored = JSON.parse(storage.get('dsh-url-router-recent'))
+  // Then it replaced that conversation's entry rather than crowding the list with it ...
+  assert.equal(stored.length, 1)
+  assert.equal(stored[0].hash, '#/session/session-abc/turn/3')
+  assert.equal(stored[0].source, 'paste')
+  // ... and the list still shows one entry, which opens that exact position
+  input.fire('focus', {})
+  const items = list.querySelectorAll('[data-dsh-url-router-recent-item]')
+  assert.equal(items.length, 1)
+  assert.equal(items[0].getAttribute('data-dsh-url-router-recent-item'), '#/session/session-abc/turn/3')
+})
+
+test('a remembered link opens when it is picked from the list', () => {
+  // Given a remembered conversation that is not the screen on display
+  const storage = new Map([
+    ['dsh-url-router-recent', JSON.stringify([{ hash: '#/session/session-abc', at: 1, source: 'visit' }])],
+  ])
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  const { input, list } = barOf(dom)
+  env.api.list('session-abc')
+  input.fire('focus', {})
+  const item = list.querySelector('[data-dsh-url-router-recent-item]')
+  assert.ok(item !== null, 'the remembered link must be offered')
+  // When it is clicked
+  let prevented = 0
+  item.fire('mousedown', { preventDefault: () => { prevented += 1 } })
+  item.fire('click')
+  env.api.advance(1000)
+  // Then the press kept the input focused (so the click could land) ...
+  assert.equal(prevented, 1)
+  // ... the conversation opened, the address bar names it, and the list closed
+  assert.deepEqual(env.opened, ['session-abc'])
+  assert.equal(env.location.hash, '#/session/session-abc')
+  assert.equal(list.getAttribute('data-open'), null)
+})
+
+test('the remembered count is a ceiling, and zero turns the memory off', () => {
+  // Given three remembered screens and a count of one
+  const storage = new Map([
+    ['dsh-url-router-recent', JSON.stringify([
+      { hash: '#/session/session-abc', at: 3 },
+      { hash: '#/session/session-def', at: 2 },
+      { hash: '#/session/session-ghi', at: 1 },
+    ])],
+    ['dsh-url-router-settings', JSON.stringify({ recentLimit: 1 })],
+  ])
+  const first = openWithTitlebar([], { menuWidth: 120, storage })
+  const firstBar = barOf(first.dom)
+  firstBar.input.fire('focus', {})
+  // Then only the newest one is offered, and the rest are dropped from disk, not hidden
+  assert.equal(firstBar.list.querySelectorAll('[data-dsh-url-router-recent-item]').length, 1)
+  assert.equal(JSON.parse(storage.get('dsh-url-router-recent')).length, 1)
+
+  // Given a machine where the count was turned to zero
+  const off = new Map([['dsh-url-router-settings', JSON.stringify({ recentLimit: 0 })]])
+  const second = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage: off })
+  const secondBar = barOf(second.dom)
+  second.env.api.list('session-abc')
+  second.env.api.view('session-abc')
+  secondBar.input.fire('focus', {})
+  // Then nothing is remembered at all, and the bar offers no list
+  assert.equal(off.has('dsh-url-router-recent'), false)
+  assert.equal(secondBar.list.getAttribute('data-open'), null)
+})
+
+test('the plugin manager page gets a settings card under this row\'s key', () => {
+  // Given a slot service that records what is registered on it
+  const registered = []
+  const slotsApi = {
+    inject(name, factory) {
+      assert.equal(name, 'plugins.row.config')
+      factory()
+      return () => {}
+    },
+    register(options, component) {
+      registered.push({ options, component })
+      return () => {}
+    },
+  }
+  const dom = fakeDom([])
+  dom.document.documentElement.setAttribute('data-windows-titlebar', '')
+  const env = environment({ slotsApi })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies on a page whose plugin manager declares the slot
+  open(env)
+  // Then the card is registered under the manager's own key, `<package name>#<row id>`:
+  // both are this package's name, which is the page the manager opens for our row.
+  assert.equal(registered.length, 1)
+  assert.equal(registered[0].options.name, 'plugins.row.config')
+  assert.equal(registered[0].options.key, 'dsh-url-router#dsh-url-router')
+  assert.equal(typeof registered[0].component, 'function')
+  // And its stylesheet was injected exactly once
+  assert.equal(dom.head.children.filter(node => node.id === 'dsh-url-router-settings-style').length, 1)
 })
 
 test('a conversation link takes the main column back from an open panel', () => {

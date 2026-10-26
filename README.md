@@ -73,6 +73,25 @@ macOS 的标题栏是**原生**的（左边红黄绿三个灯），页面里没�
 - 输入什么 ✓：任何 `#/…` 路由（会话 / 工作区 / 视图 / 轮次 / 行 / 面板 / 设置三层 / 右栏 pane）、**裸会话 id**、或**整条链接**（只取它的 fragment）✓；回车写 hash → 浏览器触发 `hashchange` → 落地走的就是"粘贴链接"那条已验证的路 ✓。
 - 它同时是**反映** ✓：本插件每次写地址栏都会同步进这个框 ✓，所以它显示的就是"现在在哪" ✓。Escape 还原 ✓；认不出的文本不动地址栏 ✓。
 
+### 设置页：地址栏的两个偏好
+
+在**插件管理器**里找到本插件那一行 → 右侧的配置箭头（也就是 `#/panel/plugins/dsh-url-router/dsh-url-router`）就是本插件的设置页。两个偏好跟着这台机器走（`localStorage`），改完立刻生效，不用重启：
+
+| 偏好 | 默认 | 说明 |
+| --- | --- | --- |
+| 首次点击地址栏时全选 | 开 | 像浏览器地址栏：**第一次**点进去，框里原来的链接整条选中，直接输入就替换它；已经聚焦时再点，才是放光标。关掉后就是一个普通文本框。 |
+| 记住最近链接的条数 | 8 | 最低 **0**（= 不记忆，地址栏也不再弹最近列表），**没有上限**。 |
+
+最近列表的用法与浏览器一致：点地址栏就弹出来，输入即过滤，Esc 关掉；条目有两个来源 —— **用过的界面**（本插件写进地址栏的每一个界面 ✓）和**粘贴过的链接**（在地址栏里粘贴任何本插件认得的链接或裸会话 id ✓，落地与否都先记住 ✓）。点一条就打开它。
+
+- 身份是**界面**，不是坐标 ✓：`#/session/<id>/turn/3/row/…` 这类点位链接归并到它所在的会话 ✓，不会用同一个对话把列表刷满 ✓；同一界面再次出现只是**提到最前** ✓，不重复 ✓。
+- 当前屏幕**不列出来** ✓（它不是一个"回去"的地方）。
+- 条数调小会**立刻**丢弃多出来的条目 ✓（磁盘上也删 ✓）；调到 0 会清空并不再记录 ✓。
+- 会话条目显示侧栏里的**对话标题** ✓（读不到标题时才只显示链接 ✓）；面板 / 设置等段位显示中文类别 + 链接本身 ✓。
+- 页面里还有「清空记录」按钮 ✓。
+- 存在这两个键里：`dsh-url-router-settings` 与 `dsh-url-router-recent` ✓ —— 换浏览器配置就没了，符合"这台机器、这个窗口"的语义 ✓。
+- **粘链接不会按到开关** ✓：插件行的启用开关就在配置控件旁边，两个都是 `<button>` ✓ —— 驱动组件页时只点**非 `role="switch"`** 的控件 ✓，所以开不到的组件页链接会按时过期并留一条诊断 ✓，**不会**顺手把插件关掉 ✓（实测踩到过 ✓）。
+
 ### 它守的规矩
 
 - **只动 fragment**：路径与查询串从不改写（启动 `?token=…` 能活下来）。
@@ -101,7 +120,7 @@ macOS 的标题栏是**原生**的（左边红黄绿三个灯），页面里没�
 
 ### 开发
 
-手写 JS 直接进 `lib/`（无构建步骤），`npm test` 直接跑交付产物（35→45 条用例，`node --test`）。改之前请读 [AGENTS.md](AGENTS.md) 里的路由与行链接契约。
+手写 JS 直接进 `lib/`（无构建步骤），`npm test` 直接跑交付产物（107 条用例，`node --test`）。改之前请读 [AGENTS.md](AGENTS.md) 里的路由与行链接契约。
 
 ### 排障
 
@@ -148,6 +167,24 @@ The Windows desktop window draws its own title bar **inside the page**: the prel
 - Placed right after the shell's own menu and before the window buttons, at `--dsh-windows-titlebar-height`, with `-webkit-app-region: no-drag` so it stays clickable.
 - Accepts any `#/…` route, a bare conversation id, or a whole link (only its fragment is used); Enter writes the hash, the browser fires `hashchange`, and the link lands through the very same path a pasted link takes.
 - It also **reflects**: every write this plugin makes to the address bar is mirrored into the box, so it always names what is on screen. Escape restores it; text that names no route is refused.
+
+### Settings: the address bar's two preferences
+
+Find this plugin's row in the **plugin manager** and press its configure control (or open `#/panel/plugins/dsh-url-router/dsh-url-router` directly) — that page is this plugin's settings. Both preferences live on this machine (`localStorage`) and take effect the moment they change, no restart:
+
+| Preference | Default | Meaning |
+| --- | --- | --- |
+| Select the whole link on the first click | on | Like a browser's address bar: the **first** click selects everything already in the box, so typing replaces the old link; a further click once the box is focused places the caret. Turned off, it is an ordinary text field. |
+| Remembered links | 8 | The floor is **0** (no memory, and no recent list), and there is **no ceiling**. |
+
+The recent list behaves like a browser's: focusing the bar opens it, typing narrows it, Escape closes it. Entries come from two places — **the screens this plugin named** (every view it wrote into the address bar) and **the links pasted into the bar** (anything it can open, remembered whether or not it lands). Picking one opens it.
+
+- Identity is the **screen**, not the position: a link into `#/session/<id>/turn/3/row/…` folds into its conversation, so one conversation cannot fill the list; seeing the same screen again moves it to the front instead of adding it twice.
+- The screen on display is not offered (it is not somewhere to go back to).
+- Lowering the count drops the extra entries **immediately**, on disk too; 0 clears the list and stops remembering.
+- A conversation entry shows the conversation title from the sidebar when the sidebar has it; other surfaces show their category and the link itself.
+- The page also has a **clear** button.
+- **A pasted link never presses a switch.** A plugin row's enable switch sits right beside its configure control and both are `<button>`s, so the driver clicks only controls that are not `role="switch"`: a component page that cannot be opened expires with a diagnostic instead of silently disabling the plugin.
 
 ### Rules it keeps
 

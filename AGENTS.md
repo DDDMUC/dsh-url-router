@@ -103,6 +103,21 @@
 - **调试不在产品里** ✓：`dev/inspect/` 是一个**独立观察器插件** ✓（`private: true`，靠根 `files` 白名单不进 npm ✓），只读公开契约（`#dsh-url-router-titlebar`、`data-dsh-url-router-platform`、`[class*="titleRow"]`、`.dshpm-trigger`）✓。判据三条：`bars` 恒为 1 ✓、`onTop` ✓、`leaves` 有没有被压住 ✓。**别再把调试代码写回 `lib/client.js`** ✗ —— 发布物必须是跑过测试的那一份 ✓。
 - **假 DOM 不支持 `#id` 选择器** ✗：mac 侧的新代码对 `getElementById` / `querySelectorAll` 全部用了可选调用 ✓，测试里缺失即跳过 ✓。
 
+## 地址栏偏好契约（2026-10-26 起，改之前先读）
+
+- **两个偏好在 `localStorage`** ✓：`dsh-url-router-settings` = `{selectAllOnFocus, recentLimit}` ✓（默认 `true` / `8` ✓）；`dsh-url-router-recent` = `[{hash, at, source}]`，最新在前 ✓，`source` 是 `visit` | `paste` ✓。它们**不属于 profile** ✓（是"这台机器这个窗口"的偏好 ✓），所以没有进 `dsh.profile`，也没有宿主接口 ✓。
+- **首次点击全选** ✓：未聚焦时的 `mousedown` 里 `preventDefault` + `focus()` + `select()` ✓ —— 只 preventDefault 不 select 没用 ✓，只 select 不 preventDefault 也没用 ✓（按下落光标那条默认行为会把选区抹掉 ✓）。**已聚焦时再点必须是普通光标行为** ✓（否则拖选与定位全废 ✓）。`focus` 事件那条路也要选 ✓（Tab / 脚本聚焦 ✓）。
+- **当前链接不能当过滤词** ✗：框里平时就写着当前界面 ✓ —— 按 `input.value` 过滤会在聚焦瞬间把列表清空 ✓（踩过 ✓）。**只有读者真的编辑过（`input` 事件）才过滤** ✓（`narrowed` 标志 ✓）。
+- **最近列表的身份 = 界面** ✓，不是坐标 ✓：`recentIdentity()` 把 `turn` / `row` / `view` / `pane` / 面板内部页都归并到所在表面 ✓（`workspace` 形状取里面的会话 id ✓）。否则在一个对话里点几十行就把列表刷满 ✓。**当前屏幕不列出** ✓。
+- **条数**：默认 8 ✓、**0 = 关闭** ✓（不写盘 ✓、不弹列表 ✓）、**无上限** ✓（`normaliseSettings` 只做非负取整 ✓，别加"顺手"的上限 ✗）。调小要**立刻**裁掉 ✓（`trimRecent()` ✓），不能等下一次写入 ✓。
+- **粘贴先记，落地再记一次** ✓：`paste` 事件里只要 `titlebarFragmentOf()` 认得出就先记 ✓（已经在屏上的链接不会触发 `reflect` 写入 ✗，否则它永远记不上 ✓）。`visit` 记在 `publishRoute()` ✓ —— 那是"地址栏真的被写了"的唯一入口 ✓。
+- **假 DOM**：`input.select` / `input.focus` / `document.activeElement` / `removeChild` 全部可选调用或判型 ✓，假 DOM 已补齐这几个 ✓（`select()` 记次数、`focus()` 写 `activeElement` ✓）。
+- **设置页 = 插件管理器里那一行** ✓（不是独立的设置分区 ✓）：`ctx.slots.inject('plugins.row.config', …)` + `ctx.slots.register({name:'plugins.row.config', key: ROW_CONFIG_KEY}, Card)` ✓，`ROW_CONFIG_KEY = 'dsh-url-router#dsh-url-router'` ✓ —— 键的形状是 `<包名>#<row id>` ✓（官方 `rowConfigKey()` 实测 ✓），本插件包名与行 id 恰好同名 ✓，于是那个页面的 URL 正好是 `#/panel/plugins/dsh-url-router/dsh-url-router` ✓。
+  - 组件收到 `{view}` ✓：`'summary'` 只要一行字 ✓（但行页的写法是 `description ?? renderSlot('…', {view:'summary'})` ✓ —— **有 description 的行根本不显示 summary** ✓，本插件有 description ✓，所以 summary 目前看不到 ✓，别以为注册失败 ✗）；其余（页面传 `'page'`）画设置本身 ✓，容器是 `[data-plugin-config]` ✓。
+  - 页面 DOM 标记：`data-plugin-row-detail` = 那个 key ✓（反映侧读的就是它 ✓）。
+  - **没有 slot 服务 / 没有 React / 没有 DOM 就跳过** ✓（`startSettingsCard()` 逐项判型 ✓）：组合里缺插件管理器不算失败 ✓。
+- **驱动组件页时绝不能点启用开关** ✓（2026-10-26 实测踩到 ✓）：插件行的**第一个 `<button>` 可以是 `role="switch"` 的启用开关** ✗ —— 旧的 `row.querySelector('button').click()` 把插件**关掉**了 ✓（probe profile 里真的被写成 `disabled: true` ✗）。现在走 `openControlOf()` ✓：跳过 `role="switch"` ✓，找不到就**不点** ✓，让链接按时过期 ✓。**以后任何"按行打开某页"的代码都得走它** ✓。
+
 ## 跨机开发日志
 
 改动记录在私有库 [DDDMUC/repo-devlogs](https://github.com/DDDMUC/repo-devlogs) 的 **`dsh-url-router/`** 文件夹（`HANDOFF.md` 最新一轮在最上面；macOS 端写 `WORKLOG-macos.md`，条目以 `[macOS]` 开头）。按该库规矩，每条先写 `**运行环境**`（设备 / 应用 / 服务商与模型），再写做了什么、动了哪些文件、怎么验证、遗留问题。
