@@ -159,6 +159,12 @@ window.__ModuleLoader__.load({
 				row: boxOf(row),
 				trigger: boxOf(trigger),
 				leaves: row === null ? [] : leavesOf(row, 0),
+				// The router's own build marker, read from its public diagnostic: it is the only
+				// way to tell which copy of lib/client.js a live window is actually running.
+				router: {
+					version: window.__dshUrlRouter?.version ?? null,
+					build: window.__dshUrlRouter?.build ?? null,
+				},
 				// Which screen the window is on, and the two new surfaces: the recent list a
 				// focused bar shows, and the settings card on this plugin's row page.
 				hash: String(window.location?.hash ?? ''),
