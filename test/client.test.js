@@ -145,6 +145,8 @@ function environment(options = {}) {
   }
   const window = {
     location,
+    /** The viewport height, which turn landing reads to decide "the seat is really on screen". */
+    innerHeight: options.innerHeight ?? 900,
     history: {
       replaceState(_state, _title, url) {
         writes.push(url)
@@ -1454,6 +1456,31 @@ test('a click on a control inside a turn is left alone', () => {
   assert.equal(env.location.hash, before)
 })
 
+/** One rendered chat seat, `data-chat-turn="<turn>">`, placed inside the fake viewport. */
+function addChatSeat(dom, turn, rect = { top: 120, left: 40, width: 600, height: 60 }) {
+  const seat = dom.document.createElement('div')
+  seat.setAttribute('data-chat-turn', String(turn))
+  seat.getBoundingClientRect = () => ({ ...rect, right: rect.left + rect.width, bottom: rect.top + rect.height, x: rect.left, y: rect.top })
+  dom.body.appendChild(seat)
+  return seat
+}
+
+test('a turn link whose seat is already on screen lands and keeps the turn', () => {
+  // Given a conversation showing turn 5, and a link naming exactly that turn
+  const dom = fakeDom(['session:session-a'])
+  addChatSeat(dom, 5)
+  const env = environment({ hash: '#/session/session-a/turn/5' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  open(env)
+  // Then the link lands on the view that is already there ...
+  assert.equal(env.warnings.length, 0)
+  // ... and the address bar still names the turn: landing must not erase where the reader is
+  assert.equal(env.location.hash, '#/session/session-a/turn/5')
+})
+
 test('a turn link opens the conversation and drives the position', () => {
   // Given a link naming a turn whose seat *is* rendered: the drive scrolls straight to it.
   // (A seat that is not rendered yet is paged back through its seq — the retain path in
@@ -2324,8 +2351,15 @@ test('a turn that is not loaded yet is paged back through its seq, then the refe
   const dom = fakeDom([])
   const calls = []
   const session = {
+    openState: 'open',
     projections: { faceOf: () => ({ getSnapshot: () => [{ turn: '105', seq: 4242 }] }) },
-    loadThrough: seq => calls.push({ loadThrough: seq }),
+    // A prototype-style method on purpose: it reads `this`, exactly like the shipped controller
+    // (`loadThrough` reads `this.openState`). Called detached it throws, so a driver that
+    // destructures the method instead of calling it on the session fails this fixture.
+    loadThrough(seq) {
+      if (this.openState !== 'open') throw new Error('session is not open')
+      calls.push({ loadThrough: seq })
+    },
   }
   const env = environment({
     hash: '#/session/session-a/turn/105',

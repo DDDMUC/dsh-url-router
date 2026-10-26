@@ -191,6 +191,9 @@
   - **座位/视口判据用官方同款选择器** ✓：`[data-chat-turn]:not([hidden])` ✓，并自己排除 `closest('[hidden]')` ✓ —— **虚拟列表会把未载入的轮次也渲染进 DOM** ✗（只查"存在"会假报就位 ✗，实测 ✗）。
   - **`sameRoute` 对 turn 的落地判据 = 目标真在视口** ✓（`routeKey` 比法会让 canonical 一带上 turn 就判等 → 链接永不驱动 ✗，死锁实测 ✓）。
   - **drive 会重入 reconcile** ✓，重入可能已 `dropLink()` → **守门后立刻 `const link = linked`，体内一律用快照** ✗（否则 `reading 'inner'` ✓，实测 ✗）。
+  - **官方方法绝不拆出来单独调用** ✗（2026-10-26 rc.3 实测）：`loadThrough` 是**原型方法** ✓，内部读 `this.openState` ✓ —— 旧代码 `const load = session.loadThrough; load(seq)` 让 `this` 丢了 ✓ → 每次抛 `Cannot read properties of undefined (reading 'openState')` ✓，被 `attempt` 吞掉 → **轮次跳转静默失效** ✗（没有诊断位 ✓，只有"链接 8 秒后过期" ✓）。现在一律 `session.loadThrough(seq)` ✓。**同类风险**：`openTab` / `openTabIn` / `setActive` / `toggleExpanded` 这些也都要带接收者 ✓。
+  - **翻页之后要自己滚** ✓（2026-10-26 补）：官方聊天是 `loadThrough(seq).then(() => scrollToTurn(turn))` 两步 ✓（`ChatNavigation.request()` ✓），它那个 navigation 对象外部拿不到 ✗ → 我们只做前半步时，座位确实加载了 ✓，但虚拟列表**不会自己滚过去** ✓，紧接着就把刚加载的轮次裁掉 ✓（实测：座位在 1.8 秒出现、`top=-43325`、之后消失 ✗）。现在 `loadThrough` 的 promise 一 resolve 就用**最多 25×50ms** 的耐心找座位并 `scrollIntoView({block:'center'})` ✓（座位要等聊天下一次 commit 才渲染 ✓）。实测：跳 60 轮前的轮次 **2.8 秒**落地 ✓、可见 ✓。
+  - **已经满足的轮次链接要保留轮号** ✓：座位本来就在屏上时链接会立刻落地 ✓，旧代码落地后写回的是"纯会话"canonical ✗ → 粘贴的 `turn/<n>` 一落地就把轮号丢了 ✗。现在落地时先把轮次记成 anchor ✓ 再写 canonical ✓。
   - `loadThrough` 是**公开 slot 契约** ✓（`session-controller` 1885 注释 "page backwards until the window covers seq" ✓）。官方 `uiChat.scrollToTurn(sessionId, turn)` 那条请求（讨论 #9339 ✓）**已降级为锦上添花** ✓（不阻塞 ✓）。
 
 ## 已实现：#4 外部 fragment 共存 / #7 路由体检（2026-10-11）
