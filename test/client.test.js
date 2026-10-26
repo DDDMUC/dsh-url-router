@@ -2609,12 +2609,16 @@ test('the remembered count is a ceiling, and zero turns the memory off', () => {
     ])],
     ['dsh-url-router-settings', JSON.stringify({ recentLimit: 1 })],
   ])
-  const first = openWithTitlebar([], { menuWidth: 120, storage })
+  const first = openWithTitlebar(['session-abc', 'session-new'], { menuWidth: 120, storage })
   const firstBar = barOf(first.dom)
   firstBar.input.fire('focus', {})
-  // Then only the newest one is offered, and the rest are dropped from disk, not hidden
+  // Then only one link is offered: the count is what the drop-down shows
   assert.equal(firstBar.list.querySelectorAll('[data-dsh-url-router-recent-item]').length, 1)
-  assert.equal(JSON.parse(storage.get('dsh-url-router-recent')).length, 1)
+  // And the next remembered link trims the disc to the count plus the spare slot the screen
+  // on display needs, so the count is still exactly one link in the list
+  first.env.api.list('session-new')
+  first.env.api.view('session-new')
+  assert.equal(JSON.parse(storage.get('dsh-url-router-recent')).length, 2)
 
   // Given a machine where the count was turned to zero
   const off = new Map([['dsh-url-router-settings', JSON.stringify({ recentLimit: 0 })]])
@@ -2626,6 +2630,30 @@ test('the remembered count is a ceiling, and zero turns the memory off', () => {
   // Then nothing is remembered at all, and the bar offers no list
   assert.equal(off.has('dsh-url-router-recent'), false)
   assert.equal(secondBar.list.getAttribute('data-open'), null)
+})
+
+test('the count is the number of links the list offers, the screen on display not counting', () => {
+  // Given nine remembered screens and a count of eight, the newest being the screen the
+  // view is about to show
+  const ids = ['session-abc', 'session-b1', 'session-b2', 'session-b3', 'session-b4', 'session-b5', 'session-b6', 'session-b7', 'session-b8']
+  const storage = new Map([
+    ['dsh-url-router-recent', JSON.stringify(ids.map((id, index) => ({ hash: `#/session/${id}`, at: 100 - index, source: 'visit' })))],
+    ['dsh-url-router-settings', JSON.stringify({ recentLimit: 8 })],
+  ])
+  const { env, dom } = openWithTitlebar(ids, { menuWidth: 120, storage })
+  const { input, list } = barOf(dom)
+  env.api.list(...ids)
+  env.api.view('session-abc')
+  assert.equal(env.location.hash, '#/session/session-abc')
+  // When the bar is focused
+  input.fire('focus', {})
+  const items = list.querySelectorAll('[data-dsh-url-router-recent-item]')
+  // Then a full eight links are offered: the screen on display neither shows nor eats a slot
+  assert.equal(items.length, 8)
+  assert.equal(
+    items.some(item => item.getAttribute('data-dsh-url-router-recent-item') === '#/session/session-abc'),
+    false,
+  )
 })
 
 test('the plugin manager page gets a settings card under this row\'s key', () => {

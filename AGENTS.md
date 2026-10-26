@@ -109,7 +109,7 @@
 - **首次点击全选** ✓：未聚焦时的 `mousedown` 里 `preventDefault` + `focus()` + `select()` ✓ —— 只 preventDefault 不 select 没用 ✓，只 select 不 preventDefault 也没用 ✓（按下落光标那条默认行为会把选区抹掉 ✓）。**已聚焦时再点必须是普通光标行为** ✓（否则拖选与定位全废 ✓）。`focus` 事件那条路也要选 ✓（Tab / 脚本聚焦 ✓）。
 - **当前链接不能当过滤词** ✗：框里平时就写着当前界面 ✓ —— 按 `input.value` 过滤会在聚焦瞬间把列表清空 ✓（踩过 ✓）。**只有读者真的编辑过（`input` 事件）才过滤** ✓（`narrowed` 标志 ✓）。
 - **最近列表的身份 = 界面** ✓，不是坐标 ✓：`recentIdentity()` 把 `turn` / `row` / `view` / `pane` / 面板内部页都归并到所在表面 ✓（`workspace` 形状取里面的会话 id ✓）。否则在一个对话里点几十行就把列表刷满 ✓。**当前屏幕不列出** ✓。
-- **条数**：默认 8 ✓、**0 = 关闭** ✓（不写盘 ✓、不弹列表 ✓）、**无上限** ✓（`normaliseSettings` 只做非负取整 ✓，别加"顺手"的上限 ✗）。调小要**立刻**裁掉 ✓（`trimRecent()` ✓），不能等下一次写入 ✓。
+- **条数 = 下拉框里能看到的条数** ✓，**当前屏幕不占名额** ✓（用户 2026-10-26 明确纠正过：按存储条数算会永远少一条 ✓）。做法：磁盘多留一个缓冲位（`recentKeep() = limit + 1` ✓，当前屏幕最多占一条 ✓），`recentEntries()` 先砍掉当前屏幕再取 `limit` ✓。默认 8 ✓、**0 = 关闭** ✓（不写盘 ✓、不弹列表 ✓）、**无上限** ✓（`normaliseSettings` 只做非负取整 ✓，别加"顺手"的上限 ✗）。调小要**立刻**裁掉 ✓（`trimRecent()` ✓），不能等下一次写入 ✓；**`recentEntries()` 纯读** ✓（`report()` 会调它 ✓，绝不能写盘 ✗）。
 - **粘贴先记，落地再记一次** ✓：`paste` 事件里只要 `titlebarFragmentOf()` 认得出就先记 ✓（已经在屏上的链接不会触发 `reflect` 写入 ✗，否则它永远记不上 ✓）。`visit` 记在 `publishRoute()` ✓ —— 那是"地址栏真的被写了"的唯一入口 ✓。
 - **假 DOM**：`input.select` / `input.focus` / `document.activeElement` / `removeChild` 全部可选调用或判型 ✓，假 DOM 已补齐这几个 ✓（`select()` 记次数、`focus()` 写 `activeElement` ✓）。
 - **设置页 = 插件管理器里那一行** ✓（不是独立的设置分区 ✓）：`ctx.slots.inject('plugins.row.config', …)` + `ctx.slots.register({name:'plugins.row.config', key: ROW_CONFIG_KEY}, Card)` ✓，`ROW_CONFIG_KEY = 'dsh-url-router#dsh-url-router'` ✓ —— 键的形状是 `<包名>#<row id>` ✓（官方 `rowConfigKey()` 实测 ✓），本插件包名与行 id 恰好同名 ✓，于是那个页面的 URL 正好是 `#/panel/plugins/dsh-url-router/dsh-url-router` ✓。
