@@ -164,6 +164,9 @@ window.__ModuleLoader__.load({
 				router: {
 					version: window.__dshUrlRouter?.version ?? null,
 					build: window.__dshUrlRouter?.build ?? null,
+					// The compatibility self-check's verdict: the desktop window has no console, so
+					// this is how an "the hooks moved" warning reaches the log.
+					compat: [...(window.__dshUrlRouter?.report?.()?.compat ?? [])],
 				},
 				// Which screen the window is on, and the two new surfaces: the recent list a
 				// focused bar shows, and the settings card on this plugin's row page.

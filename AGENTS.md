@@ -155,6 +155,22 @@
 - **已经展开的卡** ✓：`clickSettingsProvider()` 发现目标卡片**已经展开**就**不再点** ✓ —— 官方的编辑按钮是开关 ✓，重试循环会把卡片开了又关 ✗。
 - **卸载时取消排队的帧** ✓（`cancelAnimationFrame(placeFrame)` ✓），别让已摘掉的 bar 在下一帧写样式 ✗。
 
+## 兼容自检（#6，2026-10-26 已实现）
+
+官方改契约不会抛错，只会让某一层**静默失去名字** ✗ —— 所以渲染期要做一次"屏幕在、钩子没了"的检查 ✓。
+
+- **判据 = 弱信号 + 强钩子** ✓：弱信号证明"那个界面确实在屏上"（别的、还认得的东西 ✓），强钩子是本插件真正要读的东西 ✓。两者同时成立才算不兼容 ✓ —— 只用强钩子会误报（界面本来就没开 ✓）。
+- **五项检查**（`compatibilityProblems()` ✓，全部只读 ✓）：
+  1. `settings-overlay`：`role="dialog"` + `aria-modal="true"` + `nav` 里 ≥3 个按钮 ✓，但没有 `data-shortcut-modal="settings"` ✓（这个标记历史上就挪过一次 ✓）。
+  2. `plugin-manager`：`[data-plugin-panel]` 在 ✓，但六种钩子（`data-plugin-package` / `data-plugin-item` / `data-plugin-row` / `data-plugin-detail` / `data-plugin-item-detail` / `data-plugin-row-detail`）一个都没有 ✓。
+  3. `schedules-filter`：自动化面板在（`activePanelId === 'schedules'` ✓）且页面上有 `[role="group"]` ✓，但没有哪一组是"三个 `aria-pressed` 按钮" ✓。
+  4. `conversation-tabs`：**注册的会话视图 ≥2 个** ✓（单视图组合没有页签 ✓）、屏上有 `[data-chat-turn]` ✓、但没有 `[data-conversation-tabs]` ✓。
+  5. `sidebar-rows`：`[data-slot="sidebar.settings"]` 在（真侧栏 ✓）、目录里有会话 ✓、但 `[data-row-key^="session:"]` 为 0 ✓。
+- **每项只报一次** ✓（`observed.compat` 记名字 ✓），**每秒最多扫一次** ✓（`COMPAT_EVERY_MS = 1000` ✓，在 `reconcile` 里跑 ✓）。
+- **措辞统一** ✓：`与当前 DSH 版本不兼容：<name> —— 期望 <expected>，实际 <found>。这一层的链接会静默失效，请升级 DSH 或本插件` ✓（`console.warn` ✓，桌面版没有控制台，所以同时进 `report().compat` ✓）。
+- **只告警、绝不改行为** ✓（检查里不写任何东西、不影响 canonical ✓）。
+- **新增一层路由时同步加一条检查** ✓：弱信号选"这一层旁边还稳的东西" ✓，不要拿待检查的钩子自己当弱信号 ✗（那样它一坏就静默跳过 ✓，等于没查 ✓）。
+
 ## 跨机开发日志
 
 改动记录在私有库 [DDDMUC/repo-devlogs](https://github.com/DDDMUC/repo-devlogs) 的 **`dsh-url-router/`** 文件夹（`HANDOFF.md` 最新一轮在最上面；macOS 端写 `WORKLOG-macos.md`，条目以 `[macOS]` 开头）。按该库规矩，每条先写 `**运行环境**`（设备 / 应用 / 服务商与模型），再写做了什么、动了哪些文件、怎么验证、遗留问题。
@@ -162,7 +178,7 @@
 ## 待办设计（用户 2026-10-10 提的一批，未实现，设计已定）
 
 - **外部 fragment 写者共存（#4）**：`dsh-milestone` 之类的插件会在同一条 URL 的**同一个 fragment** 里写 `#msg=…` ✓。一个 fragment 只能有一个写者 ✗ → 现在的行为是"互不认账、静默覆盖" ✗。要做：① 自己的写入**只碰自己的段位** ✓（已经是这样 ✓）；② 读到**不属于本插件语法**的 fragment 时，**留一条明确诊断**（点出对方形态 + 说明互斥），不要静默 ✓；③ 真共存需要**统一裁决**（见下条的接缝）✓。
-- **兼容边界自检（#6）**：官方一改契约（侧栏行结构、插件管理器的 `data-plugin-*`、设置导航的 `aria-current`、会话视图的 `[data-conversation-tabs]`、槽位 id）就会**静默失效** ✗。要做"屏幕形态 vs 期望形态"的**渲染期检测** ✓，每类只报一次 ✓，措辞统一为"与当前 DSH 版本不兼容，请升级插件" ✓。**只告警、不改行为** ✓。
+- ~~**兼容边界自检（#6）**~~：**已实现（2026-10-26，见「兼容自检」小节）** ✓。
 - **路由体检（#7）**：一个 `window.__dshUrlRouter.report()` ✓（无 UI 依赖 ✓，绝不抛错 ✓），列出：当前 canonical 路由 ✓、正在落地的链接与重试次数 ✓、每一层界面**读到多少个钩子** ✓（会话行 / 工作区行 / 视图 tab 与 id 列表 / 轮次 / 轨迹行 / 轮次边界 / 插件行 / 官方项 / 设置覆盖层与分区 / 任务看板 / 右栏 pane ✓）、已发出的告警 ✓、以及被"不碰"的段位 ✓。
 - **对外接缝（#8）**：`ctx.urlRouter`（服务）或同名窗口事件 ✓，让第三方把"当前界面"写成链接 ✓，并由本插件**统一裁决** fragment 所有权 ✓ —— 这同时也是 #4 的真正解法 ✓。
 - **面板内层页面（#5）**：技能中心 / SSH 需要各自发契约 ✓（`data-*` + 接受同名窗口事件 ✓）；任务看板是现成先例 ✓，可作为 PR 往上游推 ✓（需要各仓 owner 同意 ✓）。

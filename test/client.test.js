@@ -3274,6 +3274,108 @@ test('a section link is satisfied while one of its provider cards is open', () =
   assert.equal(env.location.hash, '#/settings/%E6%A8%A1%E5%9E%8B/provider/apigoto')
 })
 
+/** The compatibility notes a page raised, so a fixture can assert on them alone. */
+const compatNotesOf = env => env.warnings.filter(message => message.includes('与当前 DSH 版本不兼容'))
+
+test('a plugin panel whose hooks moved is reported once, and nothing else changes', () => {
+  // Given the plugin manager's panel is up, but none of the hooks links are built from
+  const dom = fakeDom([])
+  const panel = dom.document.createElement('section')
+  panel.setAttribute('data-plugin-panel', 'true')
+  dom.body.appendChild(panel)
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies, and the page is swept again a second later
+  open(env)
+  const first = compatNotesOf(env)
+  env.api.advance(1100)
+  triggerObservers(dom)
+  // Then one note names the surface and the missing hook ...
+  assert.equal(first.length, 1)
+  assert.match(first[0], /plugin-manager/)
+  assert.match(first[0], /data-plugin-package/)
+  // ... it is not repeated by the next sweep ...
+  assert.equal(compatNotesOf(env).length, 1)
+  // ... and the report lists it
+  assert.deepEqual([...env.window.__dshUrlRouter.report().compat], ['plugin-manager'])
+})
+
+test('a settings modal without its marker is reported as incompatible', () => {
+  // Given a modal that looks like the settings page (a nav of several buttons) but carries
+  // neither of the markers this router knows
+  const dom = fakeDom([])
+  const dialog = dom.document.createElement('div')
+  dialog.setAttribute('role', 'dialog')
+  dialog.setAttribute('aria-modal', 'true')
+  const nav = dom.document.createElement('nav')
+  for (const label of ['账号', '通用', '模型']) {
+    const button = dom.document.createElement('button')
+    button.textContent = label
+    button.click = () => {}
+    nav.appendChild(button)
+  }
+  dialog.appendChild(nav)
+  dom.body.appendChild(dialog)
+  const env = environment()
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the overlay is named in the report, once
+  const notes = compatNotesOf(env)
+  assert.equal(notes.length, 1)
+  assert.match(notes[0], /settings-overlay/)
+})
+
+test('an automation filter group of the wrong shape is reported as incompatible', () => {
+  // Given the automation panel is active with a role=group that no longer holds three
+  // aria-pressed buttons
+  const dom = fakeDom([])
+  const group = dom.document.createElement('div')
+  group.setAttribute('role', 'group')
+  for (const label of ['全部', '已开启']) {
+    const button = dom.document.createElement('button')
+    button.textContent = label
+    group.appendChild(button)
+  }
+  dom.body.appendChild(group)
+  const env = environment({ panels: ['schedules'], activePanelId: 'schedules' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the filter surface is reported, and the panel link stays simply the panel's
+  const notes = compatNotesOf(env)
+  assert.equal(notes.length, 1)
+  assert.match(notes[0], /schedules-filter/)
+  assert.equal(env.location.hash, '#/panel/schedules')
+})
+
+test('a sidebar whose conversation rows moved is reported as incompatible', () => {
+  // Given a real sidebar (its settings entry is the witness) and a catalog with conversations,
+  // but no row elements for them
+  const dom = fakeDom([])
+  const entry = dom.document.createElement('button')
+  entry.setAttribute('data-slot', 'sidebar.settings')
+  dom.body.appendChild(entry)
+  const env = environment({ panels: [] })
+  env.api.list('session-a', 'session-b')
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  // Then the row hook is reported
+  const notes = compatNotesOf(env)
+  assert.equal(notes.length, 1)
+  assert.match(notes[0], /sidebar-rows/)
+  assert.match(notes[0], /2 conversation/)
+})
+
 test('the settings overlay is named under the official marker and still under the theming one', () => {
   // Given the settings overlay is up, under the official marker or the one a third-party theming
   // plugin stamps onto the same element (the latter is not a contract — official marker first)
