@@ -102,6 +102,11 @@ function environment(options = {}) {
       for (const id of ids) if (rows[id] === undefined) rows[id] = { id }
       notifyCatalog()
     },
+    /** Put catalog fields on a listed conversation (title, parentSessionId, origin). */
+    meta(id, patch) {
+      rows[id] = { ...(rows[id] ?? { id }), ...patch }
+      notifyCatalog()
+    },
     /** Land a selection in the catalog, exactly as the view owner would. */
     view(id) {
       for (const row of Object.values(rows)) delete row.retainedBy
@@ -1469,34 +1474,66 @@ function addChatSeat(dom, turn, rect = { top: 120, left: 40, width: 600, height:
   return seat
 }
 
+/** Real ids are uuids (the parent keeps the `session-` prefix, a subagent child may not). */
+const CHILD = '11111111-1111-4111-8111-111111111111'
+const PARENT = 'session-22222222-2222-4222-8222-222222222222'
 /** The catalog address of one subagent child, in the shape the controller returns. */
 const subagentAddress = (id, parent) => ({ parentSessionId: parent, childSessionId: id, mode: 'continuable' })
 
-test('a subagent conversation says whose subagent it is', () => {
-  // Given a subagent child on screen, and the catalog knowing its parent
-  const env = environment({ subagentAddressOf: id => (id === 'session-child' ? subagentAddress(id, 'session-parent') : undefined) })
-  env.api.list('session-parent', 'session-child')
-  env.api.view('session-child')
+test('a subagent conversation says whose subagent it is, by the parent\'s title', () => {
+  // Given a subagent child on screen whose parent has a title in the catalog
+  const env = environment({ subagentAddressOf: id => (id === CHILD ? subagentAddress(id, PARENT) : undefined) })
+  env.api.list(PARENT, CHILD)
+  env.api.meta(PARENT, { title: '开一个子代理，叫它回复数字 1' })
+  env.api.meta(CHILD, { parentSessionId: PARENT, origin: 'subagent' })
+  env.api.view(CHILD)
   // When the plugin applies
   open(env)
-  // Then the address bar names the child and the parent it belongs to
-  assert.equal(env.location.hash, '#/session/session-child/subagent-of/session-parent')
+  // Then the address bar names the child and the parent it belongs to, readably
+  assert.equal(env.location.hash, `#/session/${CHILD}/subagent-of/${encodeURIComponent('开一个子代理，叫它回复数字 1')}`)
 })
 
-test('a subagent link opens the child through its address', () => {
-  // Given a link naming a subagent child and its parent
-  const env = environment({
-    hash: '#/session/session-child/subagent-of/session-parent',
-    subagentAddressOf: id => (id === 'session-child' ? subagentAddress(id, 'session-parent') : undefined),
-  })
-  env.api.list('session-parent', 'session-child')
+test('a parent with no title (or a reserved one) falls back to its id', () => {
+  // Given a blank parent: the catalog has no title for it
+  const env = environment()
+  env.api.list(PARENT, CHILD)
+  env.api.meta(CHILD, { parentSessionId: PARENT, origin: 'subagent' })
+  env.api.view(CHILD)
+  open(env)
+  assert.equal(env.location.hash, `#/session/${CHILD}/subagent-of/${PARENT}`)
+  // And a title that *is* a route word is not allowed to become one
+  env.api.meta(PARENT, { title: 'turn' })
+  env.api.view(CHILD)
+  assert.equal(env.location.hash, `#/session/${CHILD}/subagent-of/${PARENT}`)
+})
+
+test('a subagent link naming the parent id opens the child through its address', () => {
+  // Given a link naming a subagent child and its parent by id
+  const env = environment({ hash: `#/session/${CHILD}/subagent-of/${PARENT}` })
+  env.api.list(PARENT, CHILD)
+  env.api.meta(CHILD, { parentSessionId: PARENT, origin: 'subagent' })
   // When the plugin applies
   open(env)
   // Then the child was opened by address (id + parent + the catalog's mode), not by a bare id
   const target = env.opened.find(entry => typeof entry === 'object')
-  assert.deepEqual({ ...target }, subagentAddress('session-child', 'session-parent'))
+  assert.deepEqual({ ...target }, { parentSessionId: PARENT, childSessionId: CHILD, mode: 'unknown' })
   // And the address bar settles on the same link
-  assert.equal(env.location.hash, '#/session/session-child/subagent-of/session-parent')
+  assert.equal(env.location.hash, `#/session/${CHILD}/subagent-of/${PARENT}`)
+})
+
+test('a subagent link whose decoration is a title opens the child by its id', () => {
+  // Given a link carrying the parent's title (that is what the router writes once it knows it)
+  const title = encodeURIComponent('开一个子代理，叫它回复数字 1')
+  const env = environment({ hash: `#/session/${CHILD}/subagent-of/${title}` })
+  env.api.list(PARENT, CHILD)
+  env.api.meta(PARENT, { title: '开一个子代理，叫它回复数字 1' })
+  env.api.meta(CHILD, { parentSessionId: PARENT, origin: 'subagent' })
+  // When the plugin applies
+  open(env)
+  // Then the child opened by its own id (a title is a label, not an address)
+  assert.ok(env.opened.includes(CHILD))
+  // ... and the link lands, naming the child and the same readable parent
+  assert.equal(env.location.hash, `#/session/${CHILD}/subagent-of/${title}`)
 })
 
 test('a turn link whose seat is already on screen lands and keeps the turn', () => {
