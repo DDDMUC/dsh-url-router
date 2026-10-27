@@ -1928,6 +1928,72 @@ test('which conversation view is showing is named in the address bar', () => {
   assert.equal(env.location.hash, '#/session/session-a/view/trajectory')
 })
 
+/** A header showing `labels` as tabs, with a slot list that may carry more views than that. */
+function addLabelledViews(dom, shown, activeIndex, entries) {
+  const row = dom.document.createElement('div')
+  row.setAttribute('data-conversation-tabs', '')
+  row.setAttribute('role', 'tablist')
+  const tabs = shown.map((label, index) => {
+    const tab = dom.document.createElement('button')
+    tab.setAttribute('role', 'tab')
+    tab.setAttribute('aria-selected', index === activeIndex ? 'true' : 'false')
+    tab.textContent = label
+    tab.click = () => {
+      for (const sibling of row.children) sibling.setAttribute('aria-selected', 'false')
+      tab.setAttribute('aria-selected', 'true')
+    }
+    row.appendChild(tab)
+    return tab
+  })
+  dom.body.appendChild(row)
+  const viewEntries = entries.map(entry => ({ options: entry }))
+  const uiConversation = { views: { entries: () => entries.map(entry => ({ target: entry.id })) } }
+  return { row, tabs, viewEntries, uiConversation }
+}
+
+test('a view is named by its tab label even when the header hides some views', () => {
+  // Given four registered views, of which the header only renders two (the rest sit in "…")
+  const dom = fakeDom([])
+  const entries = [
+    { id: 'chat', order: 0, label: '对话' },
+    { id: 'trajectory', order: 10, label: '轨迹' },
+    { id: 'bili-watched', order: 20, label: '刷过的视频' },
+    { id: 'windows', order: 30, label: '窗口' },
+  ]
+  const { uiConversation, viewEntries } = addLabelledViews(dom, ['对话', '轨迹'], 1, entries)
+  const env = environment({ panels: [], activePanelId: null, uiConversation, viewEntries })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  // When the plugin applies
+  open(env)
+  // Then the tab's label is what names the view: the counts do not match, so position could not
+  assert.equal(env.location.hash, '#/session/session-a/view/trajectory')
+})
+
+test('a view link picks its tab by label', () => {
+  // Given a header whose tabs carry labels, and a link naming one of the views by id
+  const dom = fakeDom([])
+  const entries = [
+    { id: 'chat', order: 0, label: '对话' },
+    { id: 'trajectory', order: 10, label: '轨迹' },
+    { id: 'bili-watched', order: 20, label: '刷过的视频' },
+  ]
+  const { tabs, uiConversation, viewEntries } = addLabelledViews(dom, ['对话', '轨迹', '刷过的视频'], 0, entries)
+  const env = environment({ hash: '#/session/session-a/view/bili-watched', panels: [], activePanelId: null, uiConversation, viewEntries })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  // When the plugin applies
+  open(env)
+  // Then the tab carrying that view's label was the one used
+  assert.equal(tabs[2].getAttribute('aria-selected'), 'true')
+  assert.equal(tabs[0].getAttribute('aria-selected'), 'false')
+})
+
 test('the default conversation view keeps the short route', () => {
   // Given a conversation showing its first (default) view
   const dom = fakeDom([])
