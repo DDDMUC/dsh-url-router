@@ -42,6 +42,7 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 | `#/panel/schedules/task/<任务 id>` | 自动化任务里某条任务的详情（规则页） | 面板自己的任务行 |
 | `#/panel/schedules/task/<任务 id>/records` | 同一条任务的「运行记录」页（默认的 `rule` 不写） | 面板详情里的页签 |
 | `#/settings/<分区>/provider/<提供商 id>` | 模型页里点了「编辑」展开的那张提供商卡片（id 是配置里的 key，不是显示名） | 卡片自己的「编辑」按钮 |
+| `#/power` | 电源菜单（浮层）。链接只能**打开**它，关闭/重启永远要人点 | 电源按钮 |
 | `#/session/<子会话 id>/subagent-of/<父标题>` | 子代理会话：一眼看出它是谁的子代理（父是装饰，打开的是子会话；父没标题时退回父 id） | 聊天里的子代理卡片 |
 
 输入侧宽容：`sessions`/`panels` 复数、百分号编码都接受，一律规范化成上面的形式。**不认识的段位不碰**，只留一条诊断（留给以后的路由器，或者别的插件写的深链形态 ✓ —— 一个 fragment 只能有一个写者 ✓，所以读到不属于本插件的形态时会**明确说一句**，而不是静默 ✗）。
@@ -107,6 +108,8 @@ macOS 的标题栏是**原生**的（左边红黄绿三个灯），页面里没�
 - **只动 fragment**：路径与查询串从不改写（启动 `?token=…` 能活下来）。
 - **唯一写者**：本插件拥有 fragment，请**不要**和别的写 fragment 的插件同时启用（例如 `dsh-session-url`），两者会互相覆盖。
 - **只用 `replaceState`**：浏览面板不污染后退栈。
+
+- **`#/power` 是唯一的浮层链接** ✓：菜单是瞬时状态（点外面就关），所以它只承诺“能打开”，不承诺“能停留” ✓；开着时地址栏写它 ✓，关掉后回到底下那个界面 ✓。**关闭/重启永远不驱动** ✗。
 - **链接落地前，挡在前面的表面先让开** ✓：主面板选中时地址栏读到的就是面板 ✓，设置浮层在屏时读到的就是 `#/settings/<分区>` ✓ —— 这两种情况下会话**其实已经在背后打开了** ✗，屏幕上却像"没反应" ✓。所以驱动任何非设置链接之前 ✓，先 `beginNavigation()` + `selectPanel(null)` 让面板退场 ✓，再用**官方自己那条 document 级 Escape** 把设置浮层请走 ✓（模态栈是官方内部的私有注册表 ✗ 外部拿不到 ⇒ Escape 是浏览器侧唯一可用的官方关闭路径 ✓，也就是你按 Esc 走的那条 ✓）。**一条链接只按一次** ✓：不会在你正在操作页面时乱按键 ✓，代价只是万一那次没关掉、你再粘一次 ✓。设置自己的链接**不动**浮层 ✓。
 - **轮次信息：能证明才写** ✓。助手行自己的身份里就带轮次（`row/assistant/80/32` = 第 80 轮第 32 项 ✓）；**工具行不带** ✗（只有调用 id ✓）→ 于是我从视图的**轮次边界** `[data-turn-start]` 反推 ✓，**但只在行夹在两个已渲染边界之间时才写** ✓（`turn/82/row/tool/call/…` ✓）。视图是虚拟化的 ✓，边界可能只渲染了一侧 ✗ → 那时**宁可不写轮次** ✓，也绝不猜一个错的轮次 ✗。
 - **轨迹里的每一行都有自己的链接** ✓：`#/session/<id>/row/<类>/<作用域>/<id>`（例：`row/tool/call/call_ce3a…`、`row/assistant/80/32` = 第 80 轮第 32 项 ✓；有工作区时跟在会话 id 之后 ✓）。身份来自视图自己发的 **`data-trajectory-row-key`** ✓（值是 `<类>%00<作用域>%00<id>` ✓，我把它拆成可读路径 ✓）；你家 Trajectory Plus 发的是 **`data-dshts-turn`**（轮号 ✓）→ 那种行按轮次写（`turn/<n>` ✓）。点一行就反映进地址栏 ✓（**纯被动**：不 preventDefault ✓）。粘贴行链接会打开那个对话并**尽力滚到那一行** ✓ —— 视图是虚拟化的 ✓，**没渲染出来的行不会被假装滚到** ✗（不会骗你 ✓）。
@@ -162,6 +165,7 @@ Listed in the community plugin index: [zhu1090093659/dsh-community-plugins](http
 | `#/panel/schedules/task/<id>` | one automation task's detail (its rules tab) |
 | `#/panel/schedules/task/<id>/records` | that task's records tab (the default `rule` is not written) |
 | `#/settings/<section>/provider/<provider id>` | the provider card whose editor is open in Models (the id from the config, not the display name) |
+| `#/power` | The power menu (a popover). A link can only **open** it, shutdown and restart stay human actions | the power button |
 | `#/session/<child id>/subagent-of/<parent title>` | a subagent conversation, naming whose subagent it is (the parent is decoration and falls back to its id when untitled; the child opens) |
 | `#/panel/plugins/<package>` | an installed plugin's page |
 | `#/panel/plugins/<item>` | a built-in plugin's page (`shell`, `agent-loop`, `subagent`, `web-search`) |

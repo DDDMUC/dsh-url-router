@@ -107,6 +107,18 @@
 - **调试不在产品里** ✓：`dev/inspect/` 是一个**独立观察器插件** ✓（`private: true`，靠根 `files` 白名单不进 npm ✓），只读公开契约（`#dsh-url-router-titlebar`、`data-dsh-url-router-platform`、`[class*="titleRow"]`、`.dshpm-trigger`）✓。判据三条：`bars` 恒为 1 ✓、`onTop` ✓、`leaves` 有没有被压住 ✓。**别再把调试代码写回 `lib/client.js`** ✗ —— 发布物必须是跑过测试的那一份 ✓。
 - **假 DOM 不支持 `#id` 选择器** ✗：mac 侧的新代码对 `getElementById` / `querySelectorAll` 全部用了可选调用 ✓，测试里缺失即跳过 ✓。
 
+## 电源菜单路线（2026-10-27 起）
+
+用户明确要求（2026-10-27）：`#/power` = **打开电源菜单**，只开不关 ✓。
+
+- **段位** ✓：`#/power`（无身份 ✓，一个应用只有一个菜单 ✓）。
+- **反映** ✓：`powerMenuOpenOf()` —— 契约属性 `data-dsh-power-menu`（值 `open` ✓ 或空 ✓）优先 ✓，其次是这个插件的 `.dshpm-menu` / `.dshpm-trigger[aria-expanded="true"]`（`getElementsByClassName` ✓，假 DOM 没有就跳过 ✓）。菜单开着时 canonical **就是它** ✓（盖在所有表面之上 ✓），关掉后自动回到底下那个界面 ✓。
+- **驱动** ✓：点 `.dshpm-trigger`（或 `data-dsh-power-trigger`）**一次** ✓；**已经开着就不点** ✗ —— 它是开关 ✓，重试循环会把菜单开了又关（与模型页卡片同一个陷阱 ✓）。
+- **菜单里的「关闭 DSH」/「重启 DSH」永远不驱动** ✗ —— 链接只能打开菜单 ✓，电源动作是人的决定 ✓。这条是硬约束，别"顺手"实现成命令 ✗。
+- **代价（用户已知并接受）** ✓：浮层是瞬时状态 ✓ —— 地址栏会随开合来回跳 ✓，最近列表会记一条 `power:` ✓。
+- **它读的是别的插件的 DOM** ✓（第一个这种）✓：所以契约属性优先、类名兜底 ✓。要往电源插件里加契约就加 `data-dsh-power-menu` / `data-dsh-power-trigger` ✓，别改类名 ✗。
+- 用例：`an open power menu names itself in the address bar` ✓、`a power link opens the menu, and never presses anything inside it` ✓、`a power link on an already open menu presses nothing` ✓。
+
 ## 地址栏偏好契约（2026-10-26 起，改之前先读）
 
 - **三个偏好在 `localStorage`** ✓：`dsh-url-router-settings` = `{selectAllOnFocus, hoverReveal, recentLimit}` ✓（默认 `true` / `false` / `8` ✓）；`dsh-url-router-recent` = `[{hash, at, source}]`，最新在前 ✓，`source` 是 `visit` | `paste` ✓。它们**不属于 profile** ✓（是"这台机器这个窗口"的偏好 ✓），所以没有进 `dsh.profile`，也没有宿主接口 ✓。

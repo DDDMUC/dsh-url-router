@@ -3614,3 +3614,69 @@ test('the settings overlay is named under the official marker and still under th
     assert.equal(env.location.hash, '#/settings/%E6%A8%A1%E5%9E%8B', attribute)
   }
 })
+
+test('an open power menu names itself in the address bar', () => {
+  // Given the power popover open over a conversation
+  const dom = fakeDom([])
+  const menu = dom.document.createElement('div')
+  menu.setAttribute('data-dsh-power-menu', 'open')
+  dom.body.appendChild(menu)
+  const env = environment({ panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  env.api.view('session-a')
+  // When the plugin applies
+  open(env)
+  // Then the popover is what is on screen, so it is what the address bar names
+  assert.equal(env.location.hash, '#/power')
+})
+
+test('a power link opens the menu, and never presses anything inside it', () => {
+  // Given a link naming the power menu, and a trigger that opens it
+  const dom = fakeDom([])
+  const trigger = dom.document.createElement('button')
+  trigger.setAttribute('data-dsh-power-trigger', '')
+  let clicks = 0
+  trigger.click = () => {
+    clicks += 1
+    const menu = dom.document.createElement('div')
+    menu.setAttribute('data-dsh-power-menu', 'open')
+    dom.body.appendChild(menu)
+  }
+  dom.body.appendChild(trigger)
+  const env = environment({ hash: '#/power', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  // When the plugin applies
+  open(env)
+  // Then the menu was opened once, and the route landed on it
+  assert.equal(clicks, 1)
+  assert.equal(env.location.hash, '#/power')
+})
+
+test('a power link on an already open menu presses nothing', () => {
+  // Given the menu already open
+  const dom = fakeDom([])
+  const menu = dom.document.createElement('div')
+  menu.setAttribute('data-dsh-power-menu', 'open')
+  dom.body.appendChild(menu)
+  const trigger = dom.document.createElement('button')
+  trigger.setAttribute('data-dsh-power-trigger', '')
+  let clicks = 0
+  trigger.click = () => { clicks += 1 }
+  dom.body.appendChild(trigger)
+  const env = environment({ hash: '#/power', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  // When the plugin applies
+  open(env)
+  // Then the toggle was left alone: pressing it would have closed the menu
+  assert.equal(clicks, 0)
+  assert.equal(env.location.hash, '#/power')
+})
