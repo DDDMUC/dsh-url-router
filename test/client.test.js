@@ -3680,3 +3680,30 @@ test('a power link on an already open menu presses nothing', () => {
   assert.equal(clicks, 0)
   assert.equal(env.location.hash, '#/power')
 })
+
+test('a settings link opens the overlay through the launcher menu', () => {
+  // Given a build where the gear opens a popover and "Settings" is one item down
+  const dom = fakeDom([])
+  const surface = addSettingsSurface(dom, { withOverlay: false })
+  const item = dom.document.createElement('button')
+  item.setAttribute('role', 'menuitem')
+  item.textContent = 'Settings⌥⌘,'
+  let menuClicks = 0
+  item.click = () => {
+    menuClicks += 1
+    surface.open()
+  }
+  dom.body.appendChild(item)
+  let gearClicks = 0
+  surface.button.click = () => { gearClicks += 1 }
+  const env = environment({ hash: '#/settings/General', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the menu item was used, and the section then landed
+  assert.equal(menuClicks, 1)
+  assert.equal(gearClicks, 0)
+  triggerObservers(dom)
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/General/Usage')
+})

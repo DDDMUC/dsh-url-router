@@ -62,7 +62,8 @@
 - **观察者的 `attributeFilter` 必须列全所有已发布的页面钩子**：只列 `data-plugin-detail` 曾让任务看板的重试通知饿死（历史 bug，别删名单项）。
 - **未落地的链接要有定时重试**（`LINK_RETRY_MS` = 500ms）：只靠 DOM 通知不够，启动后界面会安静下来，一次被吞掉的重试就永远不来了。
 - **切换主面板前先 `beginNavigation()`**（`ctx.layout` 的配套动作，可选面，缺失即跳过）。
-- **设置面板是覆盖层**：`#/settings` ✓（裸段位 ✓，`ROUTE_PATTERN` 支持 `#/<kind>` ✓）与 `#/settings/<分区>` ✓。反映读 `settingsOverlayOf()` ✓（**官方 `data-shortcut-modal="settings"` 优先** ✓，见上条 ✓）；驱动点 `[data-slot="sidebar.settings"]` 的入口 ✓（兜底按可访问名 ✓）。
+- **设置面板是覆盖层**：`#/settings` ✓（裸段位 ✓，`ROUTE_PATTERN` 支持 `#/<kind>` ✓）与 `#/settings/<分区>` ✓。反映读 `settingsOverlayOf()` ✓（**官方 `data-shortcut-modal="settings"` 优先** ✓，见上条 ✓）。
+- **入口在 rc.3 变成「菜单里的一项」** ✓（2026-10-27 实测）：`[data-slot="sidebar.settings"]` 里的按钮打开的是一个 **popover 菜单**（`[role="menuitem"]`：`Settings⌥⌘,` / `Feedback` / `Sign in` ✓），**浮层要再点菜单里的 Settings 项** ✓。只点齿轮 = 菜单开着、浮层没开 ✗ → 所有设置链接 8 秒后过期 ✗（用户实测"打不开 `#/settings/账号与余额`"✓）。现在 `openSettings` 先找「Settings/设置」开头的菜单项 ✓（标签带着快捷键尾巴 ✗ 所以只比开头 ✓），有就点它 ✓，没有才点齿轮 ✓；重试链自然收敛：开菜单 → 点 Settings → 点分区 ✓。
 - **设置分区的身份 = 显示名**（实测无稳定 id ✗：导航项只有 `aria-current="true"` ✓，无 `id`/`data-*`/`aria-controls` ✗，右侧内容区无 `data-*` ✗）。反映：在覆盖层里找 `aria-current="true"` **且 `closest('nav') !== null`** 的按钮 ✓，取它的标签文字 ✓；驱动：按标签（先精确、再忽略大小写）点 ✓。**换语言/改文案会让旧分区链接失效** ✗（重新点一次即写出新链接 ✓）。
 - **设置分区里的页签同理，再深一层** ✓：`#/settings/<分区>/<页签>`。契约是标准 ARIA ✓：`[role="tab"][aria-selected="true"]` ✓（实测 `dsh-usage` 的用量/个人套餐/Token 银行就是 `role="tab"` ✓），身份同样是**标签文字** ✓；驱动=先点分区、再点标签匹配的页签 ✓（同一次调用里做完 ✓，因为分区一点开，页签就在同一个覆盖层里 ✓）。
 - **`aria-selected` 也必须观察** ✓（与 `aria-current` 同理：切换页签只改它 ✓）。
