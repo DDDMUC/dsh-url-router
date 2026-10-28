@@ -63,8 +63,11 @@
 - **未落地的链接要有定时重试**（`LINK_RETRY_MS` = 500ms）：只靠 DOM 通知不够，启动后界面会安静下来，一次被吞掉的重试就永远不来了。
 - **切换主面板前先 `beginNavigation()`**（`ctx.layout` 的配套动作，可选面，缺失即跳过）。
 - **设置面板是覆盖层**：`#/settings` ✓（裸段位 ✓，`ROUTE_PATTERN` 支持 `#/<kind>` ✓）与 `#/settings/<分区>` ✓。反映读 `settingsOverlayOf()` ✓（**官方 `data-shortcut-modal="settings"` 优先** ✓，见上条 ✓）。
-- **入口在 rc.3 变成「菜单里的一项」** ✓（2026-10-27 实测）：`[data-slot="sidebar.settings"]` 里的按钮打开的是一个 **popover 菜单**（`[role="menuitem"]`：`Settings⌥⌘,` / `Feedback` / `Sign in` ✓），**浮层要再点菜单里的 Settings 项** ✓。只点齿轮 = 菜单开着、浮层没开 ✗ → 所有设置链接 8 秒后过期 ✗（用户实测"打不开 `#/settings/账号与余额`"✓）。现在 `openSettings` 先找「Settings/设置」开头的菜单项 ✓（标签带着快捷键尾巴 ✗ 所以只比开头 ✓），有就点它 ✓，没有才点齿轮 ✓；重试链自然收敛：开菜单 → 点 Settings → 点分区 ✓。
-- **只认「真的在屏上」的菜单项** ✓（2026-10-28 修复）：popover 关掉后**仍挂在 DOM 里** ✗，`[role="menuitem"]` 照样查得到 ✓ —— 点一个隐藏项什么也不会发生 ✓，还会让启动器再也按不到（下面那条 `settingsMenuItemOf` 优先命中的后果 ✗）。所以匹配到的项要过两道：不在 `[hidden]` 祖先里 ✓、`getClientRects().length > 0` ✓（`position:fixed` 的弹层 `offsetParent` 为 null ✗，别用它判断 ✓）。**症状**：设置链接全打不开、但日志里曾经开过 ✓（用户 2026-10-28 实测 ✓）。
+- **座位是单占的：入口可能是「菜单里的一项」** ✓（2026-10-27 起，2026-10-28 补全）：`[data-slot="sidebar.settings"]` 里放的是 `settings.launcher` 的**占位者** ✓ —— 空位时是外壳自己的齿轮（`button[aria-haspopup="dialog"]` ✓，一点就开浮层 ✓）；被占位时可能是**账号行**（实测桌面观察器：`haspopup: menu` ✓、标签就是账号名 ✓、座位里**根本没有** dialog 触发器 ✗）→ 一点只弹菜单 ✗，浮层要再点菜单里的「设置」项 ✓。**只点齿轮 = 菜单开着、浮层没开** ✗ → 所有设置链接 8 秒后过期 ✗（用户实测"打不开 `#/settings/账号与余额`" / "打不开 `#/settings/内置插件`" ✓）。
+- **驱动分三步，每次调用只走一步、从 DOM 重新判断** ✓（`openSettings`）：① 浮层开着 → 点分区（原有逻辑 ✓）；② 有**可见** popover → 点其中的「设置」项 ✓；③ 否则点启动器 ✓（优先座位里的 `[aria-haspopup="dialog"]` ✓，否则座位里第一个按钮 ✓）。三步自然收敛：开菜单 → 点设置项 → 点分区 ✓。
+- **绝不重复点启动器** ✗：它是开关 ✓，重试循环会把菜单开了又关 ✗（与模型页卡片同一个陷阱 ✓）。**菜单里没有设置项时什么都不点** ✓（宁可等它过期，也不点错一个动作 ✗）。
+- **「可见」的判据** ✓（`onScreen`）：不在 `[hidden]` 祖先里 ✓、`getClientRects().length > 0` ✓ —— popover 关掉后**仍挂在 DOM 里** ✗，`[role="menuitem"]` 照样查得到 ✓，点隐藏项什么也不会发生 ✓，还会让启动器再也按不到 ✗。**别用 `offsetParent` 判断** ✗：`position:fixed` 的弹层它恒为 null ✓（而弹层正是 fixed ✓）。
+- **设置项按标签匹配，不限于 `[role="menuitem"]`** ✓：实测两种菜单都有（`Settings⌥⌘,` ✓ / 账号菜单里的「设置」✓）→ 逐个选择器查（`[role="menuitem"]` / `button` / `[role="option"]` / `a` ✓，**不用逗号列表** ✗ 小 DOM 桩不支持 ✓），标签 `/设置|settings/i` **包含**匹配 ✓（不要求开头 ✗：标签可能带快捷键尾巴或前缀 ✓）。
 - **设置分区的身份 = 显示名**（实测无稳定 id ✗：导航项只有 `aria-current="true"` ✓，无 `id`/`data-*`/`aria-controls` ✗，右侧内容区无 `data-*` ✗）。反映：在覆盖层里找 `aria-current="true"` **且 `closest('nav') !== null`** 的按钮 ✓，取它的标签文字 ✓；驱动：按标签（先精确、再忽略大小写）点 ✓。**换语言/改文案会让旧分区链接失效** ✗（重新点一次即写出新链接 ✓）。
 - **设置分区里的页签同理，再深一层** ✓：`#/settings/<分区>/<页签>`。契约是标准 ARIA ✓：`[role="tab"][aria-selected="true"]` ✓（实测 `dsh-usage` 的用量/个人套餐/Token 银行就是 `role="tab"` ✓），身份同样是**标签文字** ✓；驱动=先点分区、再点标签匹配的页签 ✓（同一次调用里做完 ✓，因为分区一点开，页签就在同一个覆盖层里 ✓）。
 - **`aria-selected` 也必须观察** ✓（与 `aria-current` 同理：切换页签只改它 ✓）。

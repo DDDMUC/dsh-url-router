@@ -3735,3 +3735,65 @@ test('a hidden launcher menu is not pressed, and the gear is', () => {
   triggerObservers(dom)
   assert.equal(decodeURIComponent(env.location.hash), '#/settings/General/Usage')
 })
+
+test('a launcher menu that is open is followed to its settings item', () => {
+  // Given a seat whose button is an account row: pressing it opens a menu, and the menu's
+  // settings item (a plain button, not a menuitem) is what opens the overlay
+  const dom = fakeDom([])
+  const surface = addSettingsSurface(dom, { withOverlay: false })
+  const menu = dom.document.createElement('div')
+  menu.setAttribute('role', 'menu')
+  const item = dom.document.createElement('button')
+  item.textContent = '设置'
+  let itemClicks = 0
+  item.click = () => {
+    itemClicks += 1
+    surface.open()
+  }
+  menu.appendChild(item)
+  let launcherClicks = 0
+  surface.button.click = () => {
+    launcherClicks += 1
+    dom.body.appendChild(menu)
+  }
+  const env = environment({ hash: '#/settings/General', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the row was pressed once, its item once, and the row never pressed again
+  assert.equal(launcherClicks, 1)
+  triggerObservers(dom)
+  assert.equal(itemClicks, 1)
+  assert.equal(launcherClicks, 1)
+  triggerObservers(dom)
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/General/Usage')
+})
+
+test('a launcher menu with no settings item is left alone', () => {
+  // Given the same row, but its menu offers no way into the settings surface
+  const dom = fakeDom([])
+  const surface = addSettingsSurface(dom, { withOverlay: false })
+  const menu = dom.document.createElement('div')
+  menu.setAttribute('role', 'menu')
+  const other = dom.document.createElement('button')
+  other.textContent = '用量'
+  let otherClicks = 0
+  other.click = () => { otherClicks += 1 }
+  menu.appendChild(other)
+  let launcherClicks = 0
+  surface.button.click = () => {
+    launcherClicks += 1
+    dom.body.appendChild(menu)
+  }
+  const env = environment({ hash: '#/settings/General', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then nothing inside it was pressed, and the row was not pressed again (that would close it)
+  triggerObservers(dom)
+  triggerObservers(dom)
+  assert.equal(otherClicks, 0)
+  assert.equal(launcherClicks, 1)
+})
