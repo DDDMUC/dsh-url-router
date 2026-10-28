@@ -194,6 +194,24 @@ window.__ModuleLoader__.load({
 							menuItems: document.querySelectorAll?.('[role="menuitem"]')?.length ?? -1,
 							// What an open launcher menu offers, so a drive can be matched to it.
 							menuLabels: [...(document.querySelectorAll?.('[role="menuitem"]') ?? [])].map(node => (node.textContent ?? '').trim().slice(0, 12)).slice(0, 8),
+							// Every popover on screen with what is inside it. The settings entry sits one
+							// item down in this build, and a drive can only follow what it can see — so a
+							// bug report has to carry the menu's own contents.
+							popovers: (() => {
+								const roots = []
+								for (const selector of ['[role="menu"]', '[role="listbox"]', '[role="dialog"]']) {
+									for (const node of document.querySelectorAll?.(selector) ?? []) roots.push(node)
+								}
+								const shown = roots.filter(node => typeof node.getClientRects === 'function' ? node.getClientRects().length > 0 : true).slice(0, 3)
+								return shown.map(root => ({
+									role: root.getAttribute?.('role') ?? null,
+									text: (root.textContent ?? '').trim().slice(0, 60),
+									items: [...(root.querySelectorAll?.('button') ?? [])].slice(0, 8).map(node => ({
+										role: node.getAttribute?.('role') ?? null,
+										text: (node.textContent ?? '').trim().slice(0, 16),
+									})),
+								}))
+							})(),
 							overlay: document.querySelector?.('[data-shortcut-modal="settings"]') !== null,
 						}
 					})(),
