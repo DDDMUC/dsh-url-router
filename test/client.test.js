@@ -3871,3 +3871,74 @@ test('a bare settings link opens the panel through the seat store', () => {
   // Then the panel was opened, and no section was forced
   assert.deepEqual(calls, ['open'])
 })
+
+/** A settings overlay with a section nav and any number of deeper rows. */
+function addDeepSettings(dom, rows) {
+  const overlay = dom.document.createElement('div')
+  overlay.setAttribute('data-shortcut-modal', 'settings')
+  overlay.setAttribute('role', 'dialog')
+  const nav = dom.document.createElement('nav')
+  for (const [index, label] of ['通用设置', 'Web 扩展'].entries()) {
+    const item = dom.document.createElement('button')
+    item.textContent = label
+    if (index === 1) item.setAttribute('aria-current', 'true')
+    item.click = () => {
+      for (const sibling of nav.children) sibling.removeAttribute('aria-current')
+      item.setAttribute('aria-current', 'true')
+    }
+    nav.appendChild(item)
+  }
+  overlay.appendChild(nav)
+  const controls = []
+  for (const row of rows) {
+    const holder = dom.document.createElement('div')
+    for (const [index, label] of row.labels.entries()) {
+      const item = dom.document.createElement('button')
+      item.textContent = label
+      item.setAttribute(row.marker, index === row.selected ? 'true' : 'false')
+      item.click = () => {
+        for (const sibling of holder.children) sibling.setAttribute(row.marker, 'false')
+        item.setAttribute(row.marker, 'true')
+      }
+      holder.appendChild(item)
+      controls.push(item)
+    }
+    overlay.appendChild(holder)
+  }
+  dom.body.appendChild(overlay)
+  return { overlay, controls }
+}
+
+test('a settings link names every row the overlay has selected', () => {
+  // Given the Web 扩展 section, whose 创意工坊 tab holds another row, which holds filters
+  const dom = fakeDom([])
+  addDeepSettings(dom, [
+    { marker: 'aria-selected', labels: ['Web 插件', '皮肤', '创意工坊'], selected: 2 },
+    { marker: 'aria-selected', labels: ['编辑推荐', '皮肤', '宠物', '插件', '预设'], selected: 4 },
+    { marker: 'aria-pressed', labels: ['全部', '角色扮演'], selected: 0 },
+  ])
+  const env = environment({ panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the route names all three levels, in row order
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/Web 扩展/创意工坊/预设/全部')
+})
+
+test('a deep settings link clicks each level in turn, row by row', () => {
+  // Given the same shape, with different rows selected
+  const dom = fakeDom([])
+  const { controls } = addDeepSettings(dom, [
+    { marker: 'aria-selected', labels: ['Web 插件', '皮肤', '创意工坊'], selected: 1 },
+    { marker: 'aria-selected', labels: ['编辑推荐', '皮肤', '宠物', '插件', '预设'], selected: 0 },
+  ])
+  const env = environment({ hash: '#/settings/Web 扩展/创意工坊/预设', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then 创意工坊 was chosen over the same-named 皮肤 in the row above, and 预设 over 皮肤 beside it
+  const selected = controls.filter(control => control.getAttribute('aria-selected') === 'true').map(control => control.textContent)
+  assert.deepEqual(selected, ['创意工坊', '预设'])
+})
