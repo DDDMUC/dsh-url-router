@@ -3707,3 +3707,31 @@ test('a settings link opens the overlay through the launcher menu', () => {
   triggerObservers(dom)
   assert.equal(decodeURIComponent(env.location.hash), '#/settings/General/Usage')
 })
+
+test('a hidden launcher menu is not pressed, and the gear is', () => {
+  // Given a closed menu still mounted in the page, holding a "Settings" item
+  const dom = fakeDom([])
+  const surface = addSettingsSurface(dom, { withOverlay: false })
+  const menu = dom.document.createElement('div')
+  menu.setAttribute('role', 'menu')
+  menu.setAttribute('hidden', '')
+  const item = dom.document.createElement('button')
+  item.setAttribute('role', 'menuitem')
+  item.textContent = '设置'
+  let hiddenClicks = 0
+  item.click = () => { hiddenClicks += 1 }
+  menu.appendChild(item)
+  dom.body.appendChild(menu)
+  let gearClicks = 0
+  surface.button.click = () => { gearClicks += 1; surface.open() }
+  const env = environment({ hash: '#/settings/General', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the hidden item was left alone and the launcher was pressed instead
+  assert.equal(hiddenClicks, 0)
+  assert.equal(gearClicks, 1)
+  triggerObservers(dom)
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/General/Usage')
+})
