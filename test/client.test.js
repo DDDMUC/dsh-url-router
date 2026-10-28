@@ -3993,3 +3993,26 @@ test('a settings row with no ARIA is named by its styling class, without the bad
   // Then the row is named by its selected chip, and the count is left out of the link
   assert.equal(decodeURIComponent(env.location.hash), '#/settings/创意工坊/宠物')
 })
+
+test('a settings link that arrives as a plain hash change opens the panel', () => {
+  // Given the shell's seat, and a settings link that arrives the way a clicked chat link does
+  const dom = fakeDom([])
+  addSettingsSurface(dom, { withOverlay: false })
+  const calls = []
+  const seat = { create: () => ({ actions: { openSection: id => calls.push(id), open: () => calls.push('open') } }) }
+  const env = environment({
+    panels: [],
+    activePanelId: null,
+    settingsSeat: [{ store: seat }],
+    settingsSections: [{ id: 'plugins', order: 30, label: '内置插件' }],
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  assert.deepEqual(calls, [])
+  // When the fragment changes on its own (a click on a link the reader was given)
+  env.api.navigate('#/settings/内置插件')
+  // Then the panel is opened on that section, without any retry needed
+  assert.deepEqual(calls, ['plugins'])
+})
