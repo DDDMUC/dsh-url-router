@@ -577,6 +577,14 @@ test('a navigation face that throws is contained and does not loop', () => {
   assert.deepEqual(env.opened, ['session-abc'])
 })
 
+/** A NodeList-like: array-like with an iterator, but not an Array. */
+function nodeListOf(items) {
+  const list = { length: items.length, item: index => items[index] ?? null }
+  list[Symbol.iterator] = () => items[Symbol.iterator]()
+  for (const [index, item] of items.entries()) list[index] = item
+  return list
+}
+
 function fakeDom(initialKeys) {
   class Node {
     constructor(tag) {
@@ -685,7 +693,9 @@ if (notHidden !== null) {
       return out
     }
     querySelector(selector) { return this.descendants().find(node => node.matches(selector)) ?? null }
-    querySelectorAll(selector) { return this.descendants().filter(node => node.matches(selector)) }
+    // The real DOM answers a NodeList: array-like, not an array. Mirroring that is what lets the
+    // suite catch a scan that guards with `Array.isArray` and therefore never runs for real.
+    querySelectorAll(selector) { return nodeListOf(this.descendants().filter(node => node.matches(selector))) }
     compareDocumentPosition(other) {
       const rootOf = node => { let top = node; while (top.parentElement) top = top.parentElement; return top }
       const order = rootOf(this).descendants()
@@ -2834,7 +2844,7 @@ test('the bar remembers the screens it named, newest first, and never offers the
   // When the bar is focused, it offers the remembered screens — except the one on screen
   input.fire('focus', {})
   assert.notEqual(list.getAttribute('data-open'), null)
-  const items = list.querySelectorAll('[data-dsh-url-router-recent-item]')
+  const items = [...list.querySelectorAll('[data-dsh-url-router-recent-item]')]
   assert.deepEqual(items.map(item => item.getAttribute('data-dsh-url-router-recent-item')), ['#/session/session-abc'])
   // And going back to a screen already remembered moves it up instead of adding it twice
   env.api.view('session-abc')
@@ -2860,7 +2870,7 @@ test('a link into a position inside a screen is remembered as that screen', () =
   assert.equal(stored[0].source, 'paste')
   // ... and the list still shows one entry, which opens that exact position
   input.fire('focus', {})
-  const items = list.querySelectorAll('[data-dsh-url-router-recent-item]')
+  const items = [...list.querySelectorAll('[data-dsh-url-router-recent-item]')]
   assert.equal(items.length, 1)
   assert.equal(items[0].getAttribute('data-dsh-url-router-recent-item'), '#/session/session-abc/turn/3')
 })
@@ -2975,7 +2985,7 @@ test('the open automation task is named, with the detail tab it shows', () => {
   assert.equal(env.location.hash, '#/panel/schedules/task/schedule-abc')
   // When the reader switches the detail to the records tab
   row.value = 'records'
-  const detailTab = dom.document.querySelectorAll('[data-detail-tab]').find(node => node.getAttribute('data-detail-tab') === 'records')
+  const detailTab = [...dom.document.querySelectorAll('[data-detail-tab]')].find(node => node.getAttribute('data-detail-tab') === 'records')
   detailTab.click()
   triggerObservers(dom)
   // Then the link follows the tab
@@ -2994,7 +3004,7 @@ test('an automation task link opens the task and that tab', () => {
   triggerObservers(dom)
   // Then the row was opened and the records tab selected
   assert.equal(row.getAttribute('aria-expanded'), 'true')
-  const detailTab = dom.document.querySelectorAll('[data-detail-tab]').find(node => node.getAttribute('data-detail-tab') === 'records')
+  const detailTab = [...dom.document.querySelectorAll('[data-detail-tab]')].find(node => node.getAttribute('data-detail-tab') === 'records')
   assert.equal(detailTab.getAttribute('aria-selected'), 'true')
   // And the address bar settles on the link's own canonical form
   assert.equal(env.location.hash, '#/panel/schedules/task/schedule-abc/records')
@@ -3244,7 +3254,7 @@ test('the count is the number of links the list offers, the screen on display no
   assert.equal(env.location.hash, '#/session/session-abc')
   // When the bar is focused
   input.fire('focus', {})
-  const items = list.querySelectorAll('[data-dsh-url-router-recent-item]')
+  const items = [...list.querySelectorAll('[data-dsh-url-router-recent-item]')]
   // Then a full eight links are offered: the screen on display neither shows nor eats a slot
   assert.equal(items.length, 8)
   assert.equal(
