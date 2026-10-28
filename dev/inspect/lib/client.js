@@ -167,6 +167,11 @@ window.__ModuleLoader__.load({
 					// The compatibility self-check's verdict: the desktop window has no console, so
 					// this is how an "the hooks moved" warning reaches the log.
 					compat: [...(window.__dshUrlRouter?.report?.()?.compat ?? [])],
+					// What the drive thinks right now: the screen it names, the link it is still
+					// landing and how many attempts that took, and the last diagnostics.
+					canonical: window.__dshUrlRouter?.report?.()?.canonical ?? null,
+					link: window.__dshUrlRouter?.report?.()?.link ?? null,
+					warnings: [...(window.__dshUrlRouter?.report?.()?.warnings ?? [])].slice(-3),
 				},
 				// Which screen the window is on, and the two new surfaces: the recent list a
 				// focused bar shows, and the settings card on this plugin's row page.
