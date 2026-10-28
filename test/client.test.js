@@ -293,8 +293,11 @@ function environment(options = {}) {
   const services = options.services ?? { sessions, workspaces, uiWorkspace }
     const slots = {
       entries(key) {
-        // The plugin reads two slot keys: the sidebar's panel rows, and the conversation's views.
+        // The plugin reads four slot keys: the conversation's views, the sidebar's panel rows, the
+        // settings seat (which carries the shell's store) and the settings sections it maps.
         if (key === 'conversation.view') return options.viewEntries ?? []
+        if (key === 'sidebar.settings') return options.settingsSeat ?? []
+        if (key === 'settings.section') return (options.settingsSections ?? []).map(row => ({ options: row }))
         if (key !== 'sidebar.panellist') return []
         return (options.panels ?? []).map(panel => ({ options: panel }))
       },
@@ -3825,4 +3828,46 @@ test('a settings link that landed is not called refused', () => {
   assert.doesNotMatch(input.value, /打不开/)
   // The canonical form is encoded and names the section's tab; the point is that it landed
   assert.equal(decodeURIComponent(env.location.hash), '#/settings/内置插件/Usage')
+})
+
+test('a settings link opens the panel through the seat store', () => {
+  // Given the shell's own seat, carrying the store that owns the panel, and its section list
+  const dom = fakeDom([])
+  addSettingsSurface(dom, { withOverlay: false })
+  const calls = []
+  const seat = { create: () => ({ actions: { openSection: id => calls.push(id), open: () => calls.push('open') } }) }
+  const env = environment({
+    hash: '#/settings/Models',
+    panels: ['plugins'],
+    activePanelId: 'plugins',
+    settingsSeat: [{ store: seat }],
+    settingsSections: [{ id: 'models', order: 20, label: 'Models' }, { id: 'general', order: 0, label: 'General' }],
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the panel was opened on that section by id, with no clicking at all
+  assert.deepEqual(calls, ['models'])
+})
+
+test('a bare settings link opens the panel through the seat store', () => {
+  // Given the same seat, and a link that names no section
+  const dom = fakeDom([])
+  addSettingsSurface(dom, { withOverlay: false })
+  const calls = []
+  const seat = { create: () => ({ actions: { openSection: id => calls.push(id), open: () => calls.push('open') } }) }
+  const env = environment({
+    hash: '#/settings',
+    panels: ['plugins'],
+    activePanelId: 'plugins',
+    settingsSeat: [{ store: seat }],
+    settingsSections: [{ id: 'general', order: 0, label: 'General' }],
+  })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the panel was opened, and no section was forced
+  assert.deepEqual(calls, ['open'])
 })
