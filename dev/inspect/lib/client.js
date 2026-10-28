@@ -187,6 +187,8 @@ window.__ModuleLoader__.load({
 							haspopup: trigger?.getAttribute?.('aria-haspopup') ?? null,
 							label: (trigger?.textContent ?? '').trim().slice(0, 24),
 							menuItems: document.querySelectorAll?.('[role="menuitem"]')?.length ?? -1,
+							// What an open launcher menu offers, so a drive can be matched to it.
+							menuLabels: [...(document.querySelectorAll?.('[role="menuitem"]') ?? [])].map(node => (node.textContent ?? '').trim().slice(0, 12)).slice(0, 8),
 							overlay: document.querySelector?.('[data-shortcut-modal="settings"]') !== null,
 						}
 					})(),
