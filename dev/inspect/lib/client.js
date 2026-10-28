@@ -178,6 +178,18 @@ window.__ModuleLoader__.load({
 				settings: {
 					cards: document.querySelectorAll?.(SETTINGS_CARD_SELECTOR)?.length ?? -1,
 					rowPage: document.querySelector?.('[data-plugin-row-detail]')?.getAttribute?.('data-plugin-row-detail') ?? null,
+					// What the gear does in this build: opens the dialog itself (dialog) or a launcher
+					// menu (menu). The router has to replay both, so a bug report needs to say which.
+					launcher: (() => {
+						const slot = document.querySelector?.('[data-slot="sidebar.settings"]')
+						const trigger = slot?.querySelector?.('button[aria-haspopup="dialog"]') ?? slot?.querySelector?.('button')
+						return {
+							haspopup: trigger?.getAttribute?.('aria-haspopup') ?? null,
+							label: (trigger?.textContent ?? '').trim().slice(0, 24),
+							menuItems: document.querySelectorAll?.('[role="menuitem"]')?.length ?? -1,
+							overlay: document.querySelector?.('[data-shortcut-modal="settings"]') !== null,
+						}
+					})(),
 				},
 				// Who really owns the band the bar sits in: sampled across the bar's own line, so
 				// "the bar is drawn over something" and "something is drawn over the bar" are told
