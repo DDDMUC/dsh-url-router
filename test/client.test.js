@@ -589,6 +589,13 @@ function fakeDom(initialKeys) {
       this.className = ''
       this.id = ''
       this.textContent = ''
+      // The text a control carries itself, as opposed to text inside a nested badge. Real nodes
+      // expose it as a text node in `childNodes`; this stub spells it as a field.
+      this.ownText = ''
+    }
+    get childNodes() {
+      const own = this.ownText === '' ? [] : [{ nodeType: 3, textContent: this.ownText }]
+      return [...own, ...this.children]
     }
     setAttribute(name, value) { this.attributes.set(name, String(value)) }
     getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null }
@@ -3941,4 +3948,38 @@ test('a deep settings link clicks each level in turn, row by row', () => {
   // Then 创意工坊 was chosen over the same-named 皮肤 in the row above, and 预设 over 皮肤 beside it
   const selected = controls.filter(control => control.getAttribute('aria-selected') === 'true').map(control => control.textContent)
   assert.deepEqual(selected, ['创意工坊', '预设'])
+})
+
+test('a settings row with no ARIA is named by its styling class, without the badge count', () => {
+  // Given a filter row that only toggles a class (measured: the market's chips), whose labels
+  // carry counts in a nested badge
+  const dom = fakeDom([])
+  const overlay = dom.document.createElement('div')
+  overlay.setAttribute('data-shortcut-modal', 'settings')
+  overlay.setAttribute('role', 'dialog')
+  const nav = dom.document.createElement('nav')
+  const navButton = dom.document.createElement('button')
+  navButton.textContent = '创意工坊'
+  navButton.setAttribute('aria-current', 'true')
+  navButton.click = () => {}
+  nav.appendChild(navButton)
+  overlay.appendChild(nav)
+  const row = dom.document.createElement('div')
+  for (const [label, count, on] of [['编辑推荐', 6, false], ['皮肤', 62, false], ['宠物', 12, true]]) {
+    const chip = dom.document.createElement('button')
+    chip.className = on ? 'bkhjFa_filterChip bkhjFa_filterChipOn' : 'bkhjFa_filterChip'
+    chip.ownText = label
+    chip.textContent = `${label}${count}`
+    chip.click = () => {}
+    row.appendChild(chip)
+  }
+  overlay.appendChild(row)
+  dom.body.appendChild(overlay)
+  const env = environment({ panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the row is named by its selected chip, and the count is left out of the link
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/创意工坊/宠物')
 })
