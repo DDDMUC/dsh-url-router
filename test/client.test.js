@@ -3797,3 +3797,32 @@ test('a launcher menu with no settings item is left alone', () => {
   assert.equal(otherClicks, 0)
   assert.equal(launcherClicks, 1)
 })
+
+test('a settings link that landed is not called refused', () => {
+  // Given a desktop window whose settings overlay is showing one section
+  const dom = fakeDom(['session:session-abc'])
+  dom.document.documentElement.setAttribute('data-windows-titlebar', '')
+  const menu = dom.document.createElement('div')
+  menu.setAttribute('data-windows-menu', '')
+  menu.getBoundingClientRect = () => ({ width: 120 })
+  dom.body.appendChild(menu)
+  addSettingsSurface(dom, { sections: ['内置插件', '模型'] })
+  const env = environment()
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-abc')
+  open(env)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const input = bar.querySelector('input')
+  // When the reader pastes the label exactly as the bar shows it: raw, not percent-escaped
+  input.value = '#/settings/内置插件'
+  input.fire('keydown', { key: 'Enter' })
+  env.api.advance(1000)
+  env.api.advance(1000)
+  // Then the bar knows it landed: one route has two spellings, and both mean this section
+  assert.equal(bar.getAttribute('data-dsh-url-router-state'), 'idle')
+  assert.doesNotMatch(input.value, /打不开/)
+  // The canonical form is encoded and names the section's tab; the point is that it landed
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/内置插件/Usage')
+})
