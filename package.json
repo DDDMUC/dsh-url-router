@@ -1,6 +1,6 @@
 {
   "name": "dsh-url-router",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "DSH 地址栏路由插件：每个界面都有自己的链接（会话 / 主面板 / 插件页与组件页 / 任务看板 / 设置），整行即真链接，只写 fragment；桌面版把地址栏画进标题栏，点一下全选、并列出最近用过的界面与粘贴过的链接（条数可在插件页里调）；Windows 与 macOS 都支持。",
   "repository": {
     "type": "git",
