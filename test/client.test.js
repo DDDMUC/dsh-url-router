@@ -651,6 +651,13 @@ function fakeDom(initialKeys) {
       this.listeners.set(type, set)
     }
     fire(type, event) { for (const handler of [...(this.listeners.get(type) ?? [])]) handler(event) }
+    /** Whether the node is this element or one of its descendants (the real DOM has this). */
+    contains(other) {
+      for (let node = other ?? null; node !== null && node !== undefined; node = node.parentElement ?? null) {
+        if (node === this) return true
+      }
+      return false
+    }
     /** Walk up to the nearest ancestor (or self) matching one selector. */
     closest(selector) {
       for (let node = this; node !== null && node !== undefined; node = node.parentElement ?? null) {
@@ -4272,4 +4279,42 @@ test('the preset workbench section drives to the tab a link names', () => {
   assert.equal(tab('新建').getAttribute('aria-selected'), 'true')
   assert.equal(tab('查看').getAttribute('aria-selected'), 'false')
   assert.equal(decodeURIComponent(env.location.hash), '#/settings/预设工作台/新建')
+})
+
+test('a press outside the bar closes the recent list, even where nothing can take focus', () => {
+  // Given a bar whose drop-down is open
+  const storage = new Map()
+  const { env, dom } = openWithTitlebar(['session:session-abc', 'session:session-def'], { menuWidth: 120, storage })
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const input = bar.querySelector('input')
+  const list = bar.querySelector('[data-dsh-url-router-recent]')
+  env.api.list('session-abc', 'session-def')
+  env.api.view('session-abc')
+  env.api.view('session-def')
+  input.fire('focus', {})
+  assert.notEqual(list.getAttribute('data-open'), null)
+  // When the pointer goes down on a plain element that cannot take focus (no blur would arrive)
+  const outside = dom.document.createElement('div')
+  dom.body.appendChild(outside)
+  dom.document.fire('mousedown', { target: outside })
+  // Then the list closes anyway
+  assert.equal(list.getAttribute('data-open'), null)
+})
+
+test('a press inside the bar leaves the recent list alone', () => {
+  // Given a bar whose drop-down is open
+  const storage = new Map()
+  const { env, dom } = openWithTitlebar(['session:session-abc', 'session:session-def'], { menuWidth: 120, storage })
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const input = bar.querySelector('input')
+  const list = bar.querySelector('[data-dsh-url-router-recent]')
+  env.api.list('session-abc', 'session-def')
+  env.api.view('session-abc')
+  env.api.view('session-def')
+  input.fire('focus', {})
+  assert.notEqual(list.getAttribute('data-open'), null)
+  // When the pointer goes down on the input itself
+  dom.document.fire('mousedown', { target: input })
+  // Then it stays open
+  assert.notEqual(list.getAttribute('data-open'), null)
 })
