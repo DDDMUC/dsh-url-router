@@ -4039,7 +4039,11 @@ test('a typed power action falls back to the endpoint when no menu yields the it
   for (let step = 0; step < 5; step += 1) env.api.advance(600)
   assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu-mac/shutdown'])
   assert.equal(env.api.fetches[0].options.method, 'POST')
-  assert.deepEqual(env.warnings, [])
+  // And the path it took is on the record: a desktop window has no console
+  assert.ok(
+    env.warnings.some(line => /running power action "shutdown" through the plugin endpoint/.test(line)),
+    JSON.stringify(env.warnings),
+  )
 })
 
 test('a typed power action clicks the item the plugin marks with a contract attribute', () => {
@@ -4064,6 +4068,11 @@ test('a typed power action clicks the item the plugin marks with a contract attr
   // Then that item is clicked — the endpoint is not used, so the plugin's own flow runs
   assert.deepEqual(clicked, ['restart'])
   assert.deepEqual(env.api.fetches, [])
+  // And the path it took is on the record
+  assert.ok(
+    env.warnings.some(line => /running power action "restart" through the plugin's own menu item/.test(line)),
+    JSON.stringify(env.warnings),
+  )
 })
 
 test('a menu with no contract attribute is never guessed at by label', () => {
@@ -4184,4 +4193,19 @@ test('opening the power menu leaves the focus where the plugin put it', () => {
   input.fire('keydown', { key: 'Enter' })
   // Then the router did not steal the focus: the plugin's own keyboard handling still works
   assert.equal(env.window.document.activeElement, trigger)
+})
+
+test('a power command leaves a line in the observation report', () => {
+  // Given a window whose power plugin publishes no menu item (so the endpoint is used)
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  input.value = '#/power/shutdown'
+  input.fire('keydown', { key: 'Enter' })
+  for (let step = 0; step < 5; step += 1) env.api.advance(600)
+  // Then the report says which action ran and by which path — a desktop window has no console
+  const report = env.window.__dshUrlRouter.report()
+  assert.ok(
+    report.warnings.some(line => /running power action "shutdown" through the plugin endpoint/.test(line)),
+    JSON.stringify(report.warnings),
+  )
 })
