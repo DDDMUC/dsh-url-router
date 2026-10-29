@@ -4048,3 +4048,18 @@ test('a power action that arrives as a hash change is not run', () => {
   // Then no action is run: a URL is easy to click by accident, and this one ends the app
   assert.deepEqual(env.api.fetches, [])
 })
+
+test('a power action is never reported as a link that did not land', () => {
+  // Given the address bar, and a command typed into it
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const input = bar.querySelector('input')
+  input.value = '#/power/restart'
+  input.fire('keydown', { key: 'Enter' })
+  // Then it was sent, and the bar does not cry "打不开" while the app goes away
+  assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu/restart'])
+  env.api.advance(1000)
+  env.api.advance(1000)
+  assert.equal(bar.getAttribute('data-dsh-url-router-state'), 'idle')
+  assert.doesNotMatch(input.value, /打不开/)
+})
