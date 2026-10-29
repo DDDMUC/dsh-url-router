@@ -4034,7 +4034,7 @@ test('a typed power action runs it through the power plugin endpoint', () => {
   input.value = '#/power/shutdown'
   input.fire('keydown', { key: 'Enter' })
   // Then the plugin's own endpoint is called once, and nothing in the menu is clicked
-  assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu/shutdown'])
+  assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu-mac/shutdown'])
   assert.equal(env.api.fetches[0].options.method, 'POST')
   assert.deepEqual(env.warnings, [])
 })
@@ -4057,9 +4057,29 @@ test('a power action is never reported as a link that did not land', () => {
   input.value = '#/power/restart'
   input.fire('keydown', { key: 'Enter' })
   // Then it was sent, and the bar does not cry "打不开" while the app goes away
-  assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu/restart'])
+  assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu-mac/restart'])
   env.api.advance(1000)
   env.api.advance(1000)
   assert.equal(bar.getAttribute('data-dsh-url-router-state'), 'idle')
   assert.doesNotMatch(input.value, /打不开/)
+})
+
+test('a power action falls back to the other package when the first base refuses', () => {
+  // Given a window whose power plugin answers under the plain package's path only
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  env.window.fetch = (url, options) => {
+    env.api.fetches.push({ url, options })
+    return Promise.resolve({ ok: url.startsWith('/api/dsh-power-menu-mac') ? false : true, status: 404 })
+  }
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  // When a command is typed
+  input.value = '#/power/shutdown'
+  input.fire('keydown', { key: 'Enter' })
+  // Then both bases were tried, in order, and the second one took it
+  return Promise.resolve().then(() => Promise.resolve()).then(() => {
+    assert.deepEqual(env.api.fetches.map(call => call.url), [
+      '/api/dsh-power-menu-mac/shutdown',
+      '/api/dsh-power-menu/shutdown',
+    ])
+  })
 })
