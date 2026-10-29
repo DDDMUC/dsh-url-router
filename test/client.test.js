@@ -4209,3 +4209,39 @@ test('a power command leaves a line in the observation report', () => {
     JSON.stringify(report.warnings),
   )
 })
+
+test('a power action is not refused by the bar showing its own menu', () => {
+  // Given a typed restart whose menu is now open — the router rewrites the bar to `#/power` there
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  const menu = dom.document.createElement('div')
+  menu.setAttribute('data-dshpm-menu', '')
+  menu.setAttribute('data-dsh-power-menu', 'open')
+  const clicked = []
+  const item = dom.document.createElement('button')
+  item.setAttribute('data-dsh-power-action', 'restart')
+  item.textContent = '重启DSH'
+  item.click = () => clicked.push('restart')
+  menu.appendChild(item)
+  dom.body.appendChild(menu)
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  input.value = '#/power/restart'
+  input.fire('keydown', { key: 'Enter' })
+  // When the bar is showing the menu's own canonical, as the router writes it
+  env.location.hash = '#/power'
+  for (let step = 0; step < 4; step += 1) env.api.advance(600)
+  // Then the command still runs: one Enter is enough
+  assert.deepEqual(clicked, ['restart'])
+})
+
+test('a power action is still refused when the bar names another action', () => {
+  // Given a typed restart while the bar names a shutdown
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  input.value = '#/power/restart'
+  input.fire('keydown', { key: 'Enter' })
+  env.location.hash = '#/power/shutdown'
+  for (let step = 0; step < 5; step += 1) env.api.advance(600)
+  // Then nothing runs — a wrong command is worse than no command
+  assert.deepEqual(env.api.fetches, [])
+  assert.ok(env.warnings.some(line => /refusing power action "restart"/.test(line)), JSON.stringify(env.warnings))
+})
