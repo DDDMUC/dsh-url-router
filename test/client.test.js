@@ -4042,8 +4042,32 @@ test('a typed power action falls back to the endpoint when no menu yields the it
   assert.deepEqual(env.warnings, [])
 })
 
-test('a typed power action clicks the plugin menu item when there is one', () => {
-  // Given a window whose power plugin shows its own menu, with both items
+test('a typed power action clicks the item the plugin marks with a contract attribute', () => {
+  // Given a menu whose items publish which action they run
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  const menu = dom.document.createElement('div')
+  menu.setAttribute('data-dshpm-menu', '')
+  menu.setAttribute('data-dsh-power-menu', 'open')
+  const clicked = []
+  for (const action of ['shutdown', 'restart']) {
+    const item = dom.document.createElement('button')
+    item.setAttribute('data-dsh-power-action', action)
+    item.textContent = action === 'restart' ? '重启DSH' : '关闭DSH'
+    item.click = () => clicked.push(action)
+    menu.appendChild(item)
+  }
+  dom.body.appendChild(menu)
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  // When a restart is typed
+  input.value = '#/power/restart'
+  input.fire('keydown', { key: 'Enter' })
+  // Then that item is clicked — the endpoint is not used, so the plugin's own flow runs
+  assert.deepEqual(clicked, ['restart'])
+  assert.deepEqual(env.api.fetches, [])
+})
+
+test('a menu with no contract attribute is never guessed at by label', () => {
+  // Given the real menu: two items, labels only, a hair apart
   const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
   const menu = dom.document.createElement('div')
   menu.setAttribute('data-dshpm-menu', '')
@@ -4060,9 +4084,10 @@ test('a typed power action clicks the plugin menu item when there is one', () =>
   // When a restart is typed
   input.value = '#/power/restart'
   input.fire('keydown', { key: 'Enter' })
-  // Then the plugin's own item is clicked — the endpoint is not used, so its flow runs
-  assert.deepEqual(clicked, ['重启DSH'])
-  assert.deepEqual(env.api.fetches, [])
+  for (let step = 0; step < 5; step += 1) env.api.advance(600)
+  // Then nothing was clicked by label, and the endpoint named the action instead
+  assert.deepEqual(clicked, [])
+  assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu-mac/restart'])
 })
 
 test('a power action that arrives as a hash change is not run', () => {
