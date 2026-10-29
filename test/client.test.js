@@ -673,6 +673,13 @@ function fakeDom(initialKeys) {
       }
       const part = /^\[data-dsh-part="([^"]+)"\]$/.exec(selector)
       if (part !== null) return this.getAttribute('data-dsh-part') === part[1]
+      // `[class*="…"]` — the shell's header row is found that way when there is no power button to
+      // walk up from (fullscreen on a plugin page), and the real DOM supports it.
+      const classPart = /^\[class\*="([^"]+)"\]$/.exec(selector)
+      if (classPart !== null) {
+        const value = this.getAttribute('class')
+        return value !== null && value.includes(classPart[1])
+      }
       // `tag[attr="value"]` and `[attr="value"]`, then a bare tag selector: enough for
       // the structural hooks rows are found by. The fake DOM spells tag names upper
       // case, so tag comparisons are case-insensitive.
@@ -4318,3 +4325,4 @@ test('a press inside the bar leaves the recent list alone', () => {
   // Then it stays open
   assert.notEqual(list.getAttribute('data-open'), null)
 })
+
