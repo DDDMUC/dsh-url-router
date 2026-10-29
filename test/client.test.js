@@ -4111,3 +4111,18 @@ test('a power action falls back to the other package when the first base refuses
     ])
   })
 })
+
+test('a typed power action re-arms a claim that arrived from somewhere else', () => {
+  // Given a power command that already arrived as a hash change (a link somebody else wrote)
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  env.api.navigate('#/power/restart')
+  env.api.advance(4000)
+  assert.deepEqual(env.api.fetches, [])
+  // When the reader then types that same command themselves
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  input.value = '#/power/restart'
+  input.fire('keydown', { key: 'Enter' })
+  for (let step = 0; step < 5; step += 1) env.api.advance(600)
+  // Then it runs: typing is the authority, whatever the same fragment did before
+  assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu-mac/restart'])
+})
