@@ -156,6 +156,19 @@ window.__ModuleLoader__.load({
 					// What the bar actually reads: the only way to see whether a typed command was
 					// held (the desktop window has no console and the bar's value is not a route).
 					value: bar?.querySelector?.('input')?.value ?? null,
+					// The input's *computed* look: whether a frame is actually visible is otherwise
+					// only decidable by eye, and eyes disagree (2026-10-29).
+					input: (() => {
+						const field = bar?.querySelector?.('input')
+						const style = field === null || field === undefined
+							? null
+							: (field.ownerDocument?.defaultView?.getComputedStyle?.(field) ?? null)
+						return style === null ? null : {
+							border: `${style.borderTopWidth ?? ''} ${style.borderTopStyle ?? ''} ${style.borderTopColor ?? ''}`.trim(),
+							background: style.backgroundColor ?? null,
+							radius: style.borderTopLeftRadius ?? null,
+						}
+					})(),
 				},
 				onTop,
 				under,
