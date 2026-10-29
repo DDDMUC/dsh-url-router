@@ -4026,17 +4026,43 @@ test('a settings link that arrives as a plain hash change opens the panel', () =
   assert.deepEqual(calls, ['plugins'])
 })
 
-test('a typed power action runs it through the power plugin endpoint', () => {
-  // Given the address bar, and a command the reader typed themselves
+test('a typed power action falls back to the endpoint when no menu yields the item', () => {
+  // Given the address bar, and a command the reader typed themselves, in a window whose power
+  // plugin publishes no menu at all
   const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
   const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
   // When they press Enter on it
   input.value = '#/power/shutdown'
   input.fire('keydown', { key: 'Enter' })
-  // Then the plugin's own endpoint is called once, and nothing in the menu is clicked
+  // Then the menu gets its budget first, and the endpoint takes over
+  assert.deepEqual(env.api.fetches, [])
+  for (let step = 0; step < 5; step += 1) env.api.advance(600)
   assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu-mac/shutdown'])
   assert.equal(env.api.fetches[0].options.method, 'POST')
   assert.deepEqual(env.warnings, [])
+})
+
+test('a typed power action clicks the plugin menu item when there is one', () => {
+  // Given a window whose power plugin shows its own menu, with both items
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  const menu = dom.document.createElement('div')
+  menu.setAttribute('data-dshpm-menu', '')
+  menu.setAttribute('data-dsh-power-menu', 'open')
+  const clicked = []
+  for (const label of ['关闭DSH', '重启DSH']) {
+    const item = dom.document.createElement('button')
+    item.textContent = label
+    item.click = () => clicked.push(label)
+    menu.appendChild(item)
+  }
+  dom.body.appendChild(menu)
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  // When a restart is typed
+  input.value = '#/power/restart'
+  input.fire('keydown', { key: 'Enter' })
+  // Then the plugin's own item is clicked — the endpoint is not used, so its flow runs
+  assert.deepEqual(clicked, ['重启DSH'])
+  assert.deepEqual(env.api.fetches, [])
 })
 
 test('a power action that arrives as a hash change is not run', () => {
@@ -4057,6 +4083,7 @@ test('a power action is never reported as a link that did not land', () => {
   input.value = '#/power/restart'
   input.fire('keydown', { key: 'Enter' })
   // Then it was sent, and the bar does not cry "打不开" while the app goes away
+  for (let step = 0; step < 5; step += 1) env.api.advance(600)
   assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu-mac/restart'])
   env.api.advance(1000)
   env.api.advance(1000)
@@ -4075,6 +4102,7 @@ test('a power action falls back to the other package when the first base refuses
   // When a command is typed
   input.value = '#/power/shutdown'
   input.fire('keydown', { key: 'Enter' })
+  for (let step = 0; step < 5; step += 1) env.api.advance(600)
   // Then both bases were tried, in order, and the second one took it
   return Promise.resolve().then(() => Promise.resolve()).then(() => {
     assert.deepEqual(env.api.fetches.map(call => call.url), [
