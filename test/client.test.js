@@ -4165,3 +4165,26 @@ test('a power action refuses to run when the address bar disagrees with the clai
   assert.deepEqual(env.api.fetches, [])
   assert.ok(env.warnings.some(line => /refusing power action "restart"/.test(line)), JSON.stringify(env.warnings))
 })
+
+test('a power action takes the focus back from the menu it opened', () => {
+  // Given a window whose power plugin shows its own menu, and whose first item steals the focus
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  const menu = dom.document.createElement('div')
+  menu.setAttribute('data-dshpm-menu', '')
+  const first = dom.document.createElement('button')
+  first.textContent = '关闭DSH'
+  first.click = () => {}
+  menu.appendChild(first)
+  dom.body.appendChild(menu)
+  const trigger = dom.document.createElement('button')
+  trigger.setAttribute('data-dsh-power-trigger', '')
+  // Opening it is what the plugin answers by focusing its first item (关闭DSH).
+  trigger.click = () => { menu.setAttribute('data-dsh-power-menu', 'open'); first.focus?.() }
+  dom.body.appendChild(trigger)
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  // When a restart is typed, and the drive opens the menu
+  input.value = '#/power/restart'
+  input.fire('keydown', { key: 'Enter' })
+  // Then the focus is back on the address bar: a stray Enter is the reader's command, not 关闭DSH
+  assert.equal(env.window.document.activeElement, input)
+})
