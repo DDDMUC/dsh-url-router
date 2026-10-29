@@ -153,6 +153,9 @@ window.__ModuleLoader__.load({
 					zIndex: style?.zIndex ?? null,
 					platform: bar?.getAttribute?.('data-dsh-url-router-platform') ?? null,
 					state: bar?.getAttribute?.('data-dsh-url-router-state') ?? null,
+					// What the bar actually reads: the only way to see whether a typed command was
+					// held (the desktop window has no console and the bar's value is not a route).
+					value: bar?.querySelector?.('input')?.value ?? null,
 				},
 				onTop,
 				under,

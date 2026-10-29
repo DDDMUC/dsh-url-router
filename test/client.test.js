@@ -4246,3 +4246,4 @@ test('a power action is still refused when the bar names another action', () => 
   assert.ok(env.warnings.some(line => /refusing power action "restart"/.test(line)), JSON.stringify(env.warnings))
 })
 
+
