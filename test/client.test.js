@@ -71,6 +71,7 @@ function environment(options = {}) {
     get length() { return storage.size },
   }
   const listeners = new Map()
+  const fetches = []
   const timers = new Map()
   const writes = []
   const warnings = []
@@ -132,6 +133,8 @@ function environment(options = {}) {
     archive(id) {
       archivedSessionIds.push(id)
     },
+    /** Every `fetch` the router made, oldest first. */
+    fetches,
     /** Move the manual clock forward, firing every timer that comes due. */
     advance(ms) {
       clock += ms
@@ -173,6 +176,12 @@ function environment(options = {}) {
     },
     clearTimeout(id) {
       timers.delete(id)
+    },
+    // The power actions are run through the power plugin's own endpoint, so the fake window
+    // records the calls instead of performing them.
+    fetch(url, options) {
+      fetches.push({ url, options })
+      return Promise.resolve({ ok: true, status: 200 })
     },
     __ModuleLoader__: {
       load(spec) {
@@ -4015,4 +4024,27 @@ test('a settings link that arrives as a plain hash change opens the panel', () =
   env.api.navigate('#/settings/内置插件')
   // Then the panel is opened on that section, without any retry needed
   assert.deepEqual(calls, ['plugins'])
+})
+
+test('a typed power action runs it through the power plugin endpoint', () => {
+  // Given the address bar, and a command the reader typed themselves
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  // When they press Enter on it
+  input.value = '#/power/shutdown'
+  input.fire('keydown', { key: 'Enter' })
+  // Then the plugin's own endpoint is called once, and nothing in the menu is clicked
+  assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu/shutdown'])
+  assert.equal(env.api.fetches[0].options.method, 'POST')
+  assert.deepEqual(env.warnings, [])
+})
+
+test('a power action that arrives as a hash change is not run', () => {
+  // Given a link somebody else wrote — a chat message, a README, an AI reply
+  const { env } = openWithTitlebar([], { menuWidth: 120 })
+  // When it lands in the address bar as a plain hash change
+  env.api.navigate('#/power/restart')
+  env.api.advance(2000)
+  // Then no action is run: a URL is easy to click by accident, and this one ends the app
+  assert.deepEqual(env.api.fetches, [])
 })

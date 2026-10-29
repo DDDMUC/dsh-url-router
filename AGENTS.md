@@ -131,7 +131,9 @@
 - **段位** ✓：`#/power`（无身份 ✓，一个应用只有一个菜单 ✓）。
 - **反映** ✓：`powerMenuOpenOf()` —— 契约属性 `data-dsh-power-menu`（值 `open` ✓ 或空 ✓）优先 ✓，其次是这个插件的 `.dshpm-menu` / `.dshpm-trigger[aria-expanded="true"]`（`getElementsByClassName` ✓，假 DOM 没有就跳过 ✓）。菜单开着时 canonical **就是它** ✓（盖在所有表面之上 ✓），关掉后自动回到底下那个界面 ✓。
 - **驱动** ✓：点 `.dshpm-trigger`（或 `data-dsh-power-trigger`）**一次** ✓；**已经开着就不点** ✗ —— 它是开关 ✓，重试循环会把菜单开了又关（与模型页卡片同一个陷阱 ✓）。
-- **菜单里的「关闭 DSH」/「重启 DSH」永远不驱动** ✗ —— 链接只能打开菜单 ✓，电源动作是人的决定 ✓。这条是硬约束，别"顺手"实现成命令 ✗。
+- **动作段：`#/power/shutdown` / `#/power/restart`** ✓（2026-10-29 用户明确要求 ✓）。**动作是命令，不是地方** ✓ —— 所以它有一条**全仓唯一的来源闸** ✓：只认**读者亲手敲进地址栏**的 fragment ✓（`typedClaim` ✓，由 `driveTypedFragment` 升旗 ✓、**每一次 hash 读都降旗** ✓）→ 聊天消息 / README / **AI 回复**里的链接点了**不会关掉应用** ✓（用例 `a power action that arrives as a hash change is not run` ✓）。**一次 claim 只发一次** ✓（`powerActionSent` ✓，`dropLink` 复位 ✓）；**boot 的 hash 不触发** ✓（boot 走 `safeReadLink` ✗ 不是 typed ✓）→ 重启后残留的 `#/power/shutdown` 不会变成重启循环 ✓。
+- **实现 = 电源插件自己公开的端点** ✓：`POST /api/dsh-power-menu/{shutdown,restart}` ✓（读 `dsh-power-menu/lib/client.js` 得到 ✓，它的宿主半区注释里写着 ✓）—— **一次 `fetch`，不碰 DOM、不看语言、不等菜单渲染** ✓。比"开菜单再点那一项"轻得多 ✓，也**不需要它改任何东西** ✓（早先提的 `data-dsh-power-action` 建议**作废** ✓）。
+- **菜单项本身仍然永不点击** ✓（裸 `#/power` 照旧只开菜单 ✓，一条老硬约束 ✓）—— 只有**显式动作段 + 手工输入**这一条路会执行 ✓。
 - **代价（用户已知并接受）** ✓：浮层是瞬时状态 ✓ —— 地址栏会随开合来回跳 ✓，最近列表会记一条 `power:` ✓。
 - **它读的是别的插件的 DOM** ✓（第一个这种）✓：所以契约属性优先、类名兜底 ✓。要往电源插件里加契约就加 `data-dsh-power-menu` / `data-dsh-power-trigger` ✓，别改类名 ✗。
 - 用例：`an open power menu names itself in the address bar` ✓、`a power link opens the menu, and never presses anything inside it` ✓、`a power link on an already open menu presses nothing` ✓。
