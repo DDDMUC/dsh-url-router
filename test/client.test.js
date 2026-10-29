@@ -2701,7 +2701,7 @@ test('the desktop window gets an address bar, and a plain page does not', () => 
   assert.ok(bar !== null, 'the desktop strip must carry the address bar')
   assert.ok(bar.querySelector('input') !== null, 'the bar is one input')
   assert.equal(bar.style.left, '176px')
-  assert.equal(bar.style.right, '138px')
+  assert.equal(bar.style.right, '163px')
   // And exactly one stylesheet was injected for it
   assert.equal(dom.head.children.filter(node => node.id === 'dsh-url-router-titlebar-style').length, 1)
 })

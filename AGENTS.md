@@ -103,7 +103,8 @@
 
 - **形态**：Windows 桌面版的标题栏是**页面里画的** ✓ —— preload（`app.asar` 的 `lib/preload-app.cjs`）跑 `syncWindowsAppearance()`：给 `<html>` 打 `data-windows-titlebar`、设 `--dsh-windows-titlebar-height: 40px`，并用 shadow DOM 画菜单条（宿主 `[data-windows-menu]`，`position:fixed; top:0; left:var(--dsh-windows-menu-start,48px); z-index:1100; -webkit-app-region:no-drag`）。⇒ 那条 strip 是**页面空间** ✓，插件可以往里画 ✓。
 - **门控**：Windows 那条路径只在 `documentElement.getAttribute('data-windows-titlebar') !== null` 时执行 ✓；Web 版**一行都不执行** ✓。macOS 走另一条分支 ✓（见下节 ✓），两者靠 `macInHeader = !windowsStrip && macDesktopWindow(root)` 互斥 ✓，`place()` 里就是一个 if/else ✓ —— **不是两个各自独立挂载的组件** ✓。
-- **定位**：`left = 48 + 菜单宿主宽度 + 8` ✓（宽度用宿主 `getBoundingClientRect()` 量 ✓，**不要**读 shadow 内部 ✗）；`right = TITLEBAR_CAPTION_WIDTH = 138px` 是 Windows 窗口按钮宽度常量 ✓（改缩放/换系统可能要调 ✓）；高度一律走 CSS 变量 ✓，不要写死 40 ✓。
+- **定位**：`left = WINDOWS_MENU_START(48) + 菜单宿主宽度 + TITLEBAR_GAP(8)` ✓（宽度用宿主 `getBoundingClientRect()` 量 ✓，**不要**读 shadow 内部 ✗）；`right = TITLEBAR_CAPTION_WIDTH(138) + WINDOWS_RIGHT_INSET(25)` ✓（用户 2026-10-29 要求：**右边也要让出 25** ✓，与 mac 的内缩一致 ✓，别贴着窗口按钮 ✓）；宽度 `auto` = **撑满中间** ✓（**没有封顶** ✗ —— 大屏上会很长 ✓，用户已知 ✓）；高度一律走 CSS 变量 ✓，不要写死 40 ✓。
+- **两边的输入框长得一样** ✓（用户 2026-10-29 明确要求 ✓）：**平时没有可见边框** ✓（`border:1px solid transparent` ✓），**聚焦时才出现边框** ✓（`:focus{border-color: 品牌色}` ✓），**内部底色不变** ✓。mac 那条原来有**常驻**灰边框 ✗（`rgba(127,127,127,.34)` ✓）→ 用户指出"你不是这样" ✓ → 已改成 transparent ✓。样式分层见下 ✓。
 - **交互**：`-webkit-app-region: no-drag` 必须留 ✓ —— strip 本身是拖拽区 ✗，去掉它输入框点不动 ✗。
 - **落地只写 hash** ✓：`window.location.hash = fragment` ✓，绝不自己调路由内部 ✗ —— 浏览器触发 `hashchange` ✓，落地就是"粘贴链接"那条已验证的路 ✓。
 - **反映靠 feed** ✓：`reflect()` 写完地址栏后 `publishRoute(wantedHash)` ✓，桌面栏 `subscribeRoute(show)` ✓。**别改成监听 `hashchange`** ✗ —— 本插件用 `replaceState` 写地址栏 ✗、**不触发** hashchange ✗，改了就变成"框里永远是旧的" ✗。
@@ -157,6 +158,7 @@
 ## 地址栏偏好契约（2026-10-26 起，改之前先读）
 
 - **三个偏好在 `localStorage`** ✓：`dsh-url-router-settings` = `{selectAllOnFocus, hoverReveal, recentLimit}` ✓（默认 `true` / `false` / `8` ✓）；`dsh-url-router-recent` = `[{hash, at, source}]`，最新在前 ✓，`source` 是 `visit` | `paste` ✓。它们**不属于 profile** ✓（是"这台机器这个窗口"的偏好 ✓），所以没有进 `dsh.profile`，也没有宿主接口 ✓。
+- **样式分层：一份共用基础 + 一层 mac 覆盖** ✓（别以为两套互不干涉 ✗）：注入那一行是 `macInHeader ? TITLEBAR_STYLE_TEXT + MAC_STYLE_TEXT : TITLEBAR_STYLE_TEXT` ✓，再统一拼上 `RECENT_STYLE_TEXT` ✓ —— 所以 ✓：`TITLEBAR_STYLE_TEXT` 是**两边共用**的（改它两边一起变 ✓），`MAC_STYLE_TEXT` **只在 mac 上追加** ✓（改它只影响 mac ✓，Windows 根本不注入 ✓），最近列表的样式两边共用 ✓。
 - **悬浮才显示** ✓（2026-10-27）：`hoverReveal` 为开时，bar 带 `data-dsh-url-router-hover` ✓，**只降透明度**（`opacity:0` ✓，**别动 `pointer-events`** ✗ —— 元素还得能被悬浮到，那正是"传感器" ✓）。`:hover` 不用 CSS 判定：JS 在 bar 的 `mouseenter` / `mouseleave` 上写 `data-dsh-url-router-shown` ✓（列表是 bar 的子元素 ✓，指针进列表不会触发父级 `mouseleave` ✓）；输入框 `focus` 也点亮 ✓；`blur` 走 **0ms 超时**再收 ✓（列表项的 `mousedown` 会 `preventDefault`，但同一次任务里布尔的焦点状态还没落定 ✓）；列表开着不收 ✓。偏好切换通过 `subscribeSettings` 实时应用 ✓（不必重启 ✓）。**mac 与 Windows 两套样式表都要加** ✓（两个常量各自一份 ✓）。
 - **首次点击全选** ✓：未聚焦时的 `mousedown` 里 `preventDefault` + `focus()` + `select()` ✓ —— 只 preventDefault 不 select 没用 ✓，只 select 不 preventDefault 也没用 ✓（按下落光标那条默认行为会把选区抹掉 ✓）。**已聚焦时再点必须是普通光标行为** ✓（否则拖选与定位全废 ✓）。`focus` 事件那条路也要选 ✓（Tab / 脚本聚焦 ✓）。
 - **当前链接不能当过滤词** ✗：框里平时就写着当前界面 ✓ —— 按 `input.value` 过滤会在聚焦瞬间把列表清空 ✓（踩过 ✓）。**只有读者真的编辑过（`input` 事件）才过滤** ✓（`narrowed` 标志 ✓）。
