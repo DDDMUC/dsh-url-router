@@ -1661,7 +1661,7 @@ test('a turn link pasted while running still explains itself', () => {
  * carries `data-dsh-surface="settings"`, its sections are buttons inside a `<nav>`, and the
  * platform marks the current one with `aria-current`.
  */
-function addSettingsSurface(dom, { withOverlay = true, sections = ['General', 'Models'] } = {}) {
+function addSettingsSurface(dom, { withOverlay = true, sections = ['General', 'Models'], tabs = ['Usage', 'Plans', 'Token Bank'] } = {}) {
   const build = () => {
     const overlay = dom.document.createElement('div')
     overlay.setAttribute('data-dsh-surface', 'settings')
@@ -1680,7 +1680,7 @@ function addSettingsSurface(dom, { withOverlay = true, sections = ['General', 'M
     overlay.appendChild(nav)
     // A section may own tabs; the platform marks the current one with aria-selected.
     const tabRow = dom.document.createElement('div')
-    for (const [index, label] of ['Usage', 'Plans', 'Token Bank'].entries()) {
+    for (const [index, label] of tabs.entries()) {
       const tab = dom.document.createElement('button')
       tab.setAttribute('role', 'tab')
       tab.setAttribute('aria-selected', index === 0 ? 'true' : 'false')
@@ -4251,3 +4251,25 @@ test('a power action is still refused when the bar names another action', () => 
 
 
 
+
+test('the preset workbench section drives to the tab a link names', () => {
+  // Given the workbench page as it now ships: one settings section, four aria-selected tabs
+  const dom = fakeDom([])
+  const { section, tab } = addSettingsSurface(dom, {
+    withOverlay: false,
+    sections: ['预设工作台'],
+    tabs: ['查看', '新建', '帮助', '设置'],
+  })
+  const env = environment({ hash: '#/settings/预设工作台/新建', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Drive to completion the way the real GUI does: each notification is another attempt.
+  for (let i = 0; i < 3; i++) triggerObservers(dom)
+  // Then the section is current and that tab is the selected one
+  assert.equal(section('预设工作台').getAttribute('aria-current'), 'true')
+  assert.equal(tab('新建').getAttribute('aria-selected'), 'true')
+  assert.equal(tab('查看').getAttribute('aria-selected'), 'false')
+  assert.equal(decodeURIComponent(env.location.hash), '#/settings/预设工作台/新建')
+})
