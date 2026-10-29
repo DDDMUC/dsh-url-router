@@ -4151,3 +4151,17 @@ test('a typed power action re-arms a claim that arrived from somewhere else', ()
   // Then it runs: typing is the authority, whatever the same fragment did before
   assert.deepEqual(env.api.fetches.map(call => call.url), ['/api/dsh-power-menu-mac/restart'])
 })
+
+test('a power action refuses to run when the address bar disagrees with the claim', () => {
+  // Given a claim for a restart while the address bar actually holds a shutdown
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  input.value = '#/power/restart'
+  input.fire('keydown', { key: 'Enter' })
+  // (the bar is the reader's own word, so it is edited to disagree)
+  env.location.hash = '#/power/shutdown'
+  for (let step = 0; step < 6; step += 1) env.api.advance(600)
+  // Then nothing ran: a wrong command is worse than no command
+  assert.deepEqual(env.api.fetches, [])
+  assert.ok(env.warnings.some(line => /refusing power action "restart"/.test(line)), JSON.stringify(env.warnings))
+})
