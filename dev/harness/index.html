@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN" data-platform="darwin">
+<head>
+<meta charset="utf-8">
+<title>url-router 地址栏摆位演练台</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; height: 100%; font: 13px/1.4 -apple-system, "PingFang SC", sans-serif; background: #fff; color: #1b1f27; }
+  .shell { display: flex; height: 100%; }
+  .sidebar { width: 280px; background: #eef2fb; border-right: 1px solid #e2e6f0; padding: 8px; }
+  .sidebar .toggle { width: 28px; height: 28px; border: 1px solid #cfd6e6; border-radius: 6px; background: #fff; }
+  .main { flex: 1; display: flex; flex-direction: column; }
+  /* 外壳头部那一行：y≈10..44，标题在左、按钮在右 —— 真机上的形状 */
+  .headerRow { position: relative; height: 44px; display: flex; align-items: center; padding: 0 12px; gap: 12px; }
+  .crumb { margin: 0; font-size: 13px; font-weight: 600; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #5b6478; }
+  .corner { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .corner .icon { width: 26px; height: 26px; border: 0; background: transparent; font-size: 14px; color: #5b6478; }
+  .tabs { display: flex; gap: 18px; padding: 4px 16px 8px; font-size: 13px; color: #5b6478; border-bottom: 1px solid #eef1f7; }
+  .tabs .on { color: #3b6cf6; font-weight: 600; }
+  .body { padding: 16px; color: #6b7488; }
+  #report { position: fixed; left: 8px; bottom: 8px; z-index: 9999; background: #111a2e; color: #cfe0ff;
+            font: 11px/1.5 ui-monospace, Menlo, monospace; padding: 8px 10px; border-radius: 8px; max-width: 60vw; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="sidebar"><button class="toggle">▥</button></div>
+  <div class="main">
+    <div class="headerRow">
+      <h1 class="crumb">dsh-url-router</h1>
+      <span class="chip">🔒 标准模式</span>
+      <div class="corner" data-conversation-header-corner>
+        <button class="icon">⇅</button><button class="icon">▢</button><button class="icon">⏻</button>
+      </div>
+    </div>
+    <div class="tabs"><span class="on">对话</span><span>轨迹</span><span>窗口</span><span>提示词</span><span>…</span></div>
+    <div class="body">（演练台：这里代表会话正文 / 面板内容）</div>
+  </div>
+</div>
+<pre id="report"></pre>
+<script>
+// 让 mac 分支生效：真机的判定是 UA 里有 Electron/ 或协议是 dsh-app:，这里伪造 UA。
+Object.defineProperty(navigator, 'userAgent', {
+  configurable: true,
+  get: () => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Electron/30.0.0 Safari/537.36',
+})
+// 假模块加载器：把插件的 factory 跑起来，喂一个最小的 ctx。
+window.__ModuleLoader__ = {
+  load({ factory }) {
+    const stub = {
+      get: () => undefined,
+      entries: () => [],
+      inject: () => {},
+      register: () => {},
+    }
+    const ctx = {
+      get: name => (name === 'slots' ? stub : stub),
+      slots: stub,
+      sessions: { list: () => ({ byId: {}, order: [] }) },
+      workspaces: { list: () => [] },
+      uiWorkspace: { openSession: () => {}, openWorkspace: () => {} },
+      layout: { selectPanel: () => {}, beginNavigation: () => {} },
+      on: () => () => {},
+      effect: fn => { try { return fn() } catch { return () => {} } },
+      logger: { warn: () => {}, info: () => {} },
+      get now() { return () => Date.now() },
+    }
+    try {
+      const plugin = factory()
+      const dispose = plugin.apply(ctx)
+      window.__harnessDispose = dispose
+      window.__harnessReady = true
+    } catch (error) {
+      window.__harnessError = String(error && error.stack || error)
+    }
+  },
+}
+</script>
+<script src="../../lib/client.js"></script>
+<script>
+const report = document.getElementById('report')
+const bar = () => document.querySelector('[data-dsh-part="url-router-address-bar"]')
+const show = label => {
+  const node = bar()
+  const line = (() => { try { return window.__dshUrlRouter?.reportLine?.() } catch { return null } })()
+  const rect = node?.getBoundingClientRect?.()
+  report.textContent = [
+    label,
+    `harness ready: ${window.__harnessReady === true}`,
+    window.__harnessError ? `error: ${window.__harnessError}` : '',
+    node ? `bar: top=${Math.round(rect.top)} left=${Math.round(rect.left)} w=${Math.round(rect.width)} display=${getComputedStyle(node).display} opacity=${getComputedStyle(node).opacity}` : 'bar: 不存在',
+    `build: ${window.__dshUrlRouter?.build ?? '—'}`,
+    line ? `line: limit=${line.rightLimit} spans=${line.spans.map(s => `${s.left}-${s.right}(${s.from})`).join(',') || 'none'}` : 'line: —',
+    line ? `runs: ${line.runs.map(r => `${r.left}-${r.right}`).join(',') || 'none'}` : '',
+  ].filter(Boolean).join('\n')
+}
+window.__harnessShow = show
+// 状态机：用 ?case= 指定要演练的那一种，每种都能单独截图
+const CASE = new URLSearchParams(location.search).get('case') || 'initial'
+const setWidth = value => Object.defineProperty(window, 'innerWidth', { configurable: true, get: () => value })
+const settle = label => setTimeout(() => show(label), 300)
+
+setTimeout(() => {
+  show('初始')
+  if (CASE === 'resize') {
+    setWidth(900)
+    window.dispatchEvent(new Event('resize'))
+    settle('拉伸到 900 之后')
+  } else if (CASE === 'zero') {
+    // 全屏切换的瞬间：窗口宽度读成 0
+    setWidth(0)
+    window.dispatchEvent(new Event('resize'))
+    settle('宽度读成 0 之后')
+  } else if (CASE === 'panel') {
+    // 切到没有头部行的界面（面板页）
+    const main = document.querySelector('.main')
+    main.innerHTML = '<div class="body" style="padding:40px 16px">（面板页：这一行什么都没有）</div>'
+    settle('切到面板页之后')
+  }
+}, 400)
+</script>
+</body>
+</html>

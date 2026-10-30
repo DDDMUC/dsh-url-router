@@ -4830,3 +4830,58 @@ test('the line measurement names what each occupied stretch came from', () => {
     assert.ok(/^(sel|leaf|merged|\?)/.test(span.from), `expected a known source, got ${span.from}`)
   }
 })
+
+test('a resized window keeps the bar visible and on its line', () => {
+  // Given the bar placed on a wide window
+  const { env, dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280 })
+  triggerObservers(dom)
+  assert.notEqual(barBoxOf(dom).display, 'none')
+  // When the window is dragged narrower
+  env.window.innerWidth = 900
+  triggerObservers(dom)
+  // Then the bar is still on the line and still inside the window
+  const box = barBoxOf(dom)
+  assert.notEqual(box.display, 'none')
+  assert.equal(box.top, 11)
+  assert.ok(box.left + box.width <= 900, `expected the bar inside the window, got ${box.left + box.width}`)
+})
+
+test('a window that cannot be measured does not turn the bar into a sliver', () => {
+  // Given the bar placed on a normal window
+  const { env, dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280 })
+  triggerObservers(dom)
+  const before = barBoxOf(dom)
+  assert.ok(before.width >= 120, `expected a real bar to start with, got ${before.width}`)
+  // When the window reports no width at all (a fullscreen transition does this)
+  env.window.innerWidth = 0
+  triggerObservers(dom)
+  // Then the bar keeps a real box instead of being clamped to one pixel
+  const after = barBoxOf(dom)
+  assert.notEqual(after.display, 'none')
+  assert.ok(after.width >= 120, `expected the bar to keep a real width, got ${after.width}`)
+})
+
+test('switching to a screen with no header row keeps the bar visible', () => {
+  // Given the bar placed on a conversation screen
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280 })
+  triggerObservers(dom)
+  assert.notEqual(barBoxOf(dom).display, 'none')
+  // When the screen is replaced by one that draws nothing on that line (a panel page)
+  for (const child of [...dom.body.children]) {
+    if (child.getAttribute?.('data-dsh-part') === 'url-router-address-bar') continue
+    dom.body.removeChild(child)
+  }
+  const page = dom.document.createElement('div')
+  page.setAttribute('class', 'panel_page')
+  page.getBoundingClientRect = () => ({ top: 40, left: 0, width: 1280, height: 700 })
+  dom.body.appendChild(page)
+  triggerObservers(dom)
+  // Then the bar is still there, on the same line
+  const box = barBoxOf(dom)
+  assert.notEqual(box.display, 'none')
+  assert.equal(box.top, 11)
+  assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left + box.width}`)
+})
