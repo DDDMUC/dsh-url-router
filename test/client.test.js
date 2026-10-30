@@ -4790,7 +4790,7 @@ test('an icon that is not a button still keeps the bar off it', () => {
   assert.ok(box.left + box.width <= 1030, `expected the bar clear of the icon, got ${box.left + box.width}`)
 })
 
-test('a capped width keeps the bar clear even when the line measures nothing there', () => {
+test('the width is capped, so the bar cannot grow without bound', () => {
   // Given a header whose right-hand side holds something the line measurement does not recognise as an
   // obstacle (a plain container — the shape of anything this measurement can miss: a shadow-hosted
   // wrapper, a role the band does not select). The bar used to hug the right-hand side, so anything
@@ -4811,10 +4811,18 @@ test('a capped width keeps the bar clear even when the line measures nothing the
   // When the screen settles
   triggerObservers(dom)
   const box = barBoxOf(dom)
-  // Then the bar is still clear of it: it grows to the right from a known-clear start, with a cap
+  // Then the bar starts from a known-clear place, its width is capped, and it stays in the window.
+  //
+  // The cap keeps it from growing without bound; it is NOT what keeps it off a control the measurement
+  // missed — that guarantee belongs to the right-hand limit the shell publishes
+  // (`[data-conversation-header-corner]`, which has its own test). At 560 the two coincided and this
+  // test asserted the stronger claim; the reader asked for 700, so it now asserts what is actually
+  // true, and the trade is written down instead of being hidden by a test that would have gone green
+  // on a lie.
   assert.notEqual(box.display, 'none')
   assert.ok(box.left >= 410, `expected the bar after the title, got ${box.left}`)
-  assert.ok(box.left + box.width <= 1030, `expected the bar short of the controls, got ${box.left + box.width}`)
+  assert.ok(box.width <= 700, `expected the width capped at 700, got ${box.width}`)
+  assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left + box.width}`)
 })
 
 test('the line measurement names what each occupied stretch came from', () => {
