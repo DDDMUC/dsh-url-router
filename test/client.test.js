@@ -4631,3 +4631,29 @@ test('on the top strip the bar fits between the controls that live there', () =>
   assert.ok(box.left > 130, `expected the bar after the toggle, got ${box.left}`)
   assert.ok(box.left + box.width < 1360, `expected the bar before the floating button, got ${box.left + box.width}`)
 })
+
+test('a chip of icon plus text counts as occupied, so the bar does not sit on it', () => {
+  // Given a header whose title is followed by a chip: an icon element plus its own text
+  const { dom } = openMacBar({ innerWidth: 900 })
+  const row = dom.document.createElement('div')
+  row.setAttribute('class', 'hash_titleRow_hash')
+  row.getBoundingClientRect = () => ({ top: 10, left: 0, width: 900, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = 'dsh-url-router'
+  title.getBoundingClientRect = () => ({ top: 14, left: 80, width: 90, height: 26 })
+  row.appendChild(title)
+  const chip = dom.document.createElement('span')
+  chip.ownText = '标准模式'
+  chip.getBoundingClientRect = () => ({ top: 14, left: 185, width: 60, height: 26 })
+  const icon = dom.document.createElement('svg')
+  icon.getBoundingClientRect = () => ({ top: 16, left: 185, width: 16, height: 16 })
+  chip.appendChild(icon)
+  row.appendChild(chip)
+  dom.body.appendChild(row)
+  // When the screen settles
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar starts after the chip, not on top of it
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 245, `expected the bar after the chip, got ${box.left}`)
+})
