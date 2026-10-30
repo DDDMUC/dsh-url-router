@@ -143,8 +143,27 @@ window.__ModuleLoader__.load({
 				onTop = hit !== null && hit !== undefined && (hit === bar || bar?.contains?.(hit) === true)
 				under = describe(hit)
 			}
+			// What the bar could have aligned to, and where each of those sits: the bar's position is
+			// decided by which of these it picks, and that is otherwise invisible from outside.
+			const candidates = []
+			for (const selector of ['[class*="titleRow"]', 'h1', 'h2', 'h3', '[role="heading"]']) {
+				const found = document?.querySelectorAll?.(selector) ?? []
+				for (const node of found) {
+					if (candidates.length >= 8) break
+					const rect = boxOf(node)
+					if (rect === null) continue
+					candidates.push({
+						selector,
+						text: String(node.textContent ?? '').trim().slice(0, 24),
+						top: rect.top,
+						left: rect.left,
+						height: rect.height,
+					})
+				}
+			}
 			return {
 				bars: bars?.length ?? -1,
+				candidates,
 				bar: box === null ? null : {
 					box,
 					display: style?.display ?? null,
