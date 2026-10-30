@@ -4786,3 +4786,30 @@ test('an icon that is not a button still keeps the bar off it', () => {
   assert.notEqual(box.display, 'none')
   assert.ok(box.left + box.width <= 1030, `expected the bar clear of the icon, got ${box.left + box.width}`)
 })
+
+test('a capped width keeps the bar clear even when the line measures nothing there', () => {
+  // Given a header whose right-hand side holds something the line measurement does not recognise as an
+  // obstacle (a plain container — the shape of anything this measurement can miss: a shadow-hosted
+  // wrapper, a role the band does not select). The bar used to hug the right-hand side, so anything
+  // missed there was drawn straight over.
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  const row = dom.document.createElement('div')
+  row.setAttribute('class', 'hash_titleRow_hash')
+  row.getBoundingClientRect = () => ({ top: 10, left: 0, width: 1280, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = 'dsh-url-router'
+  title.getBoundingClientRect = () => ({ top: 14, left: 300, width: 110, height: 26 })
+  row.appendChild(title)
+  const controls = dom.document.createElement('div')
+  controls.getBoundingClientRect = () => ({ top: 10, left: 1030, width: 200, height: 34 })
+  controls.appendChild(dom.document.createElement('div'))
+  row.appendChild(controls)
+  dom.body.appendChild(row)
+  // When the screen settles
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar is still clear of it: it grows to the right from a known-clear start, with a cap
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 410, `expected the bar after the title, got ${box.left}`)
+  assert.ok(box.left + box.width <= 1030, `expected the bar short of the controls, got ${box.left + box.width}`)
+})
