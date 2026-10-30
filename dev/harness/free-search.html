@@ -120,6 +120,24 @@ setTimeout(() => {
           log('当前高亮的侧栏项: ' + active)
           window.__harnessReady = true
         }, 700)
+      } else if (CASE === 'scroll') {
+        // 滚到中间某一节，看页面根发布的"当前分区"会不会跟着变（而不是永远最后一节）
+        log('')
+        const target = document.querySelector('[data-dsh-section="fallback"]')
+        const before = document.querySelector('[data-dsh-panel-section]')?.getAttribute('data-dsh-panel-section') ?? '(无)'
+        log('滚动前 当前分区: ' + before)
+        if (target) {
+          target.scrollIntoView({ block: 'start' })
+          setTimeout(() => {
+            const after = document.querySelector('[data-dsh-panel-section]')?.getAttribute('data-dsh-panel-section') ?? '(无)'
+            log('滚到 fallback 之后 当前分区: ' + after)
+            log('跟着读者变了吗: ' + (after === 'fallback' ? '是 ✓' : (after === 'performance' ? '否 ✗ —— 还是最后一节' : '否 ✗（变成了 ' + after + '）')))
+            window.__harnessReady = true
+          }, 800)
+        } else {
+          log('找不到 fallback 那一节 ✗')
+          window.__harnessReady = true
+        }
       } else {
         window.__harnessReady = true
       }
