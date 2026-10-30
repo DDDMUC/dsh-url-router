@@ -4943,3 +4943,4 @@ test('a container eight hundred pixels wide is not a header control', () => {
   assert.ok(box.left <= 700, `expected the bar to keep the middle, got ${box.left}`)
   assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left + box.width}`)
 })
+
