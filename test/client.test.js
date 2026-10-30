@@ -4988,3 +4988,33 @@ test('every one of the six free-search sections round-trips through the address 
     )
   }
 })
+
+test('a page that follows the section contract names its section (generic attribute names)', () => {
+  // Given a page that uses the contract as documented (docs/panel-sections.md): the current section on
+  // the root as `data-dsh-panel-section`, each section and rail item marked `data-dsh-section`, and the
+  // rail items are real anchors. Nothing here assumes how many sections there are.
+  const dom = fakeDom([])
+  addPluginRow(dom, 'some-plugin')
+  const detail = dom.document.createElement('div')
+  detail.setAttribute('data-plugin-detail', 'some-plugin')
+  dom.body.appendChild(detail)
+  const env = environment({ hash: '#/panel/plugins/some-plugin', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const rowDetail = dom.document.createElement('div')
+  rowDetail.setAttribute('data-plugin-row-detail', 'some-plugin#main')
+  dom.body.appendChild(rowDetail)
+  const card = dom.document.createElement('div')
+  card.setAttribute('data-dsh-panel-section', 'tuning')
+  const rail = dom.document.createElement('a')
+  rail.setAttribute('data-dsh-section', 'tuning')
+  rail.setAttribute('href', '#/panel/plugins/some-plugin/tuning')
+  card.appendChild(rail)
+  dom.body.appendChild(card)
+  // When the screen settles
+  triggerObservers(dom)
+  // Then the address bar names that section — the generic spelling is enough on its own
+  assert.equal(env.location.hash, '#/panel/plugins/some-plugin/main/tuning')
+})

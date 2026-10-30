@@ -12,6 +12,13 @@
 - **两个 client 一起改完再触发重启** ✗：`lib/client.js` 与 `dev/inspect/lib/client.js` 分两次改，会让两个条目**各挂一次** ✓（22:47 那次就是这样 ✓）。
 - 这条纪律的完整证据（三次崩溃的日志、mtime、`node --check` 结果）在 `LETTER-FROM-DSH-POWER-MENU-2026-10-30.md` ✓；回信在 `LETTER-REPLY-TO-DSH-POWER-MENU-2026-10-30.md` ✓。
 
+## 契约：插件页面分区链接
+
+`docs/panel-sections.md` —— **任何"页面里自己分了几节"的插件**照它做，地址栏就会自动跟着分区走。
+要点：页面根发布 `data-dsh-panel-section="<id>"`（当前分区，**恰好一个元素**）、每节带
+`data-dsh-section="<id>"`、侧栏项是 `<a data-dsh-section="<id>" href="#/panel/plugins/<包>/<id>">`；
+**分区数量不限**；页面**只读不写 URL**（地址栏唯一写者是本插件）；旧名 `data-dsh-fs-section` 仍兼容。
+
 ## 细则在 notes/（主文件超预算会被截断，所以实证挪出去了）
 
 
