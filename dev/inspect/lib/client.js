@@ -203,11 +203,11 @@ window.__ModuleLoader__.load({
 				anchor: window.__dshUrlRouter?.report?.()?.anchor ?? null,
 				// The line itself: which stretches the placement treated as occupied, and which one it
 				// picked. This is the ground truth for "the bar is over a button" reports.
-				band: (() => {
+				// Deliberately not named `band`: an older probe already owns that key in this object
+				// literal, and a duplicate key silently loses (mine did, for a whole round).
+				line: (() => {
 					try {
-						const line = window.__dshUrlRouter?.report?.()?.anchor ?? null
-						const api = window.__dshUrlRouter
-						const probe = api?.reportLine ?? null
+						const probe = window.__dshUrlRouter?.reportLine ?? null
 						return probe === null ? null : probe()
 					} catch {
 						return null

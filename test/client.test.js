@@ -4813,3 +4813,20 @@ test('a capped width keeps the bar clear even when the line measures nothing the
   assert.ok(box.left >= 410, `expected the bar after the title, got ${box.left}`)
   assert.ok(box.left + box.width <= 1030, `expected the bar short of the controls, got ${box.left + box.width}`)
 })
+
+test('the line measurement names what each occupied stretch came from', () => {
+  // Given a mac screen with the shell's header corner on the right
+  const { env, dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280 })
+  triggerObservers(dom)
+  // When the caller asks for the line it measured
+  const line = env.window.__dshUrlRouter.reportLine()
+  // Then every occupied stretch says whether a selector found it or the leaf walk did, and what it
+  // was — the answer to "what is the bar giving way to" without a debugger
+  assert.notEqual(line, null)
+  assert.ok(line.spans.length > 0)
+  for (const span of line.spans) {
+    assert.ok(typeof span.from === 'string' && span.from.length > 0, `expected a source, got ${span.from}`)
+    assert.ok(/^(sel|leaf):/.test(span.from), `expected a source prefix, got ${span.from}`)
+  }
+})
