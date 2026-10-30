@@ -155,6 +155,11 @@ function environment(options = {}) {
     location,
     /** The viewport height, which turn landing reads to decide "the seat is really on screen". */
     innerHeight: options.innerHeight ?? 900,
+    // The viewport width, which the bar's placement reads. In a real page `window` *is* the global,
+    // so this fake has to carry what the code reads off the window rather than only off the context
+    // (measured 2026-10-30: `window.innerWidth` was undefined here while `globalThis.innerWidth` was
+    // set, which quietly made every placement think the window was 0 wide).
+    innerWidth: options.innerWidth ?? 1440,
     history: {
       replaceState(_state, _title, url) {
         writes.push(url)
@@ -4446,3 +4451,128 @@ test('the bar keeps off the title it shares a line with', () => {
   const left = Number.parseInt(bar.style.left, 10)
   assert.ok(left >= 485, `expected the bar to start after the title, got ${left}`)
 })
+
+/**
+ * A macOS header row shaped like the real one: the title and mode chip at its left, and the shell's
+ * own corner (inside a wrapper holding only the buttons) at its right.
+ * @param {object} dom - the fake document.
+ * @param {object} options - widths and whether the corner exists at all.
+ * @returns {object} the row.
+ */
+function addMacHeaderRow(dom, { width = 1200, corner = true, top = 8, titleLeft = 300 } = {}) {
+  const row = dom.document.createElement('div')
+  row.getBoundingClientRect = () => ({ top, left: 0, width, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = 'dsh-url-router'
+  title.getBoundingClientRect = () => ({ top: top + 4, left: titleLeft, width: 110, height: 26 })
+  const mode = dom.document.createElement('span')
+  mode.textContent = '标准模式'
+  mode.getBoundingClientRect = () => ({ top: top + 4, left: titleLeft + 115, width: 70, height: 26 })
+  row.appendChild(title)
+  row.appendChild(mode)
+  if (corner) {
+    const wrapper = dom.document.createElement('div')
+    wrapper.getBoundingClientRect = () => ({ top, left: width - 150, width: 140, height: 34 })
+    const box = dom.document.createElement('div')
+    box.setAttribute('data-conversation-header-corner', '')
+    box.getBoundingClientRect = () => ({ top, left: width - 150, width: 140, height: 34 })
+    wrapper.appendChild(box)
+    row.appendChild(wrapper)
+  }
+  dom.body.appendChild(row)
+  return row
+}
+
+const barBoxOf = dom => {
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  return {
+    bar,
+    display: bar.style.display,
+    top: Number.parseInt(bar.style.top, 10),
+    left: Number.parseInt(bar.style.left, 10),
+    width: Number.parseInt(bar.style.width, 10),
+  }
+}
+
+test('the bar takes the shell corner line and stays off the title', () => {
+  // Given a header row with the shell's own corner
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  addMacHeaderRow(dom)
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then it is on that row's line, to the right of the title
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.top >= 8 && box.top <= 42, `expected the corner's line, got ${box.top}`)
+  assert.ok(box.left >= 485, `expected the bar after the title, got ${box.left}`)
+})
+
+test('a plugin row reusing the titleRow class does not drag the bar down', () => {
+  // Given a page whose own rows carry the same class the shell's header does, far below it
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  addMacHeaderRow(dom)
+  const pluginRow = dom.document.createElement('div')
+  pluginRow.setAttribute('class', 'hash_titleRow_hash')
+  pluginRow.getBoundingClientRect = () => ({ top: 202, left: 300, width: 800, height: 60 })
+  dom.body.appendChild(pluginRow)
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar stays on the header's line, not on that row
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.top < 100, `expected the header line, got ${box.top}`)
+})
+
+test('without a corner the bar still finds the shell header row by its class', () => {
+  // Given no corner, only a row carrying the shell's class near the top
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  const row = dom.document.createElement('div')
+  row.setAttribute('class', 'hash_titleRow_hash')
+  row.getBoundingClientRect = () => ({ top: 10, left: 0, width: 1200, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = '会话标题'
+  title.getBoundingClientRect = () => ({ top: 14, left: 300, width: 140, height: 26 })
+  row.appendChild(title)
+  dom.body.appendChild(row)
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then it is placed on that row's line, after its title
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.top >= 8 && box.top <= 44, `expected the row line, got ${box.top}`)
+  assert.ok(box.left >= 440, `expected the bar after the title, got ${box.left}`)
+})
+
+test('a sidebar heading does not win over the page title', () => {
+  // Given a narrow sidebar heading and a page title in the wide column, and no shell row at all
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  const sidebarHeading = dom.document.createElement('h2')
+  sidebarHeading.textContent = 'deepseek HARNESS'
+  sidebarHeading.getBoundingClientRect = () => ({ top: 70, left: 20, width: 200, height: 26 })
+  dom.body.appendChild(sidebarHeading)
+  const pageHeading = dom.document.createElement('h2')
+  pageHeading.textContent = '插件'
+  pageHeading.getBoundingClientRect = () => ({ top: 70, left: 670, width: 60, height: 26 })
+  dom.body.appendChild(pageHeading)
+  const pageAction = dom.document.createElement('button')
+  pageAction.getBoundingClientRect = () => ({ top: 70, left: 1450, width: 120, height: 26 })
+  dom.body.appendChild(pageAction)
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar sits in the wide column, not in the sidebar
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 300, `expected the wide column, got ${box.left}`)
+})
+
+test('a header scrolled above the viewport still places the bar on screen', () => {
+  // Given a header row the bar has already been placed on
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  const row = addMacHeaderRow(dom)
+  triggerObservers(dom)
+  assert.notEqual(barBoxOf(dom).display, 'none')
+  // When the page scrolls that row above the viewport (a plugin page scrolling to a section)
+  row.getBoundingClientRect = () => ({ top: -200, left: 0, width: 1200, height: 34 })
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar is kept on screen rather than hidden or drawn off the top
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.top >= 8, `expected an on-screen line, got ${box.top}`)
+})
+

@@ -163,6 +163,9 @@ window.__ModuleLoader__.load({
 			}
 			return {
 				bars: bars?.length ?? -1,
+				// Which element the router aligned the bar to, and the stretch it used: the decision is
+				// made from the page's markup, and from outside there is no other way to check it.
+				anchor: report?.anchor ?? null,
 				candidates,
 				bar: box === null ? null : {
 					box,
