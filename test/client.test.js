@@ -4368,6 +4368,27 @@ test('leaving the bar puts the recent list away', () => {
   assert.notEqual(list.getAttribute('data-open'), null)
   // When the pointer leaves the bar (the list is its child, so this means really leaving)
   bar.fire('mouseleave', {})
+  env.api.advance(400)
   // Then the list is put away
   assert.equal(list.getAttribute('data-open'), null)
+})
+
+test('reaching for the drop-down does not put it away', () => {
+  // Given a bar whose drop-down is open
+  const storage = new Map()
+  const { env, dom } = openWithTitlebar(['session:session-abc', 'session:session-def'], { menuWidth: 120, storage })
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const input = bar.querySelector('input')
+  const list = bar.querySelector('[data-dsh-url-router-recent]')
+  env.api.list('session-abc', 'session-def')
+  env.api.view('session-abc')
+  env.api.view('session-def')
+  input.fire('focus', {})
+  assert.notEqual(list.getAttribute('data-open'), null)
+  // When the pointer leaves the bar and arrives on the list below it (crossing the gap between them)
+  bar.fire('mouseleave', {})
+  list.fire('mouseenter', {})
+  env.api.advance(400)
+  // Then the list is still there to pick from
+  assert.notEqual(list.getAttribute('data-open'), null)
 })
