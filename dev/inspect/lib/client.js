@@ -161,8 +161,28 @@ window.__ModuleLoader__.load({
 					})
 				}
 			}
+			// What actually sits on the window's top strip. The bar's line there is a constant, because
+			// the strip is not page markup — so the elements that do sit on it (the shell's own controls,
+			// a plugin's floating button) are the only way to check that constant against the real thing.
+			const topStrip = []
+			for (const node of document?.querySelectorAll?.('*') ?? []) {
+				if (topStrip.length >= 8) break
+				if (node === bar || (bar !== null && bar.contains?.(node) === true)) continue
+				const rect = boxOf(node)
+				if (rect === null || rect.height <= 0 || rect.top < 0 || rect.top > 60) continue
+				topStrip.push({
+					tag: node.tagName,
+					cls: String(node.getAttribute?.('class') ?? '').slice(0, 40),
+					text: String(node.textContent ?? '').trim().slice(0, 20),
+					top: rect.top,
+					left: rect.left,
+					width: rect.width,
+					height: rect.height,
+				})
+			}
 			return {
 				bars: bars?.length ?? -1,
+				topStrip,
 				// Which element the router aligned the bar to, and the stretch it used: the decision is
 				// made from the page's markup, and from outside there is no other way to check it.
 				anchor: report?.anchor ?? null,
