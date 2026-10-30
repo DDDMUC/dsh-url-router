@@ -4744,3 +4744,20 @@ test('the bar stops where the shell says its header buttons begin', () => {
   assert.notEqual(box.display, 'none')
   assert.ok(box.left + box.width <= 1000, `expected the bar to stop at the corner, got ${box.left + box.width}`)
 })
+
+
+test('the placement can be asked what it measured on the line', () => {
+  // Given a mac screen with the shell's header corner on the right
+  const { env, dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280 })
+  triggerObservers(dom)
+  // When the caller asks for the line it measured
+  const line = env.window.__dshUrlRouter.reportLine()
+  // Then it names the occupied stretches, the free ones, and the limit it stopped at — the only
+  // honest answer to "why is the bar there" on a machine with no debugger attached
+  assert.notEqual(line, null)
+  assert.equal(line.top, 11)
+  assert.ok(Array.isArray(line.spans) && line.spans.length > 0, 'expected the occupied stretches')
+  assert.ok(Array.isArray(line.runs) && line.runs.length > 0, 'expected the free stretches')
+  assert.ok(line.rightLimit > 0 && line.rightLimit <= 1280, `expected a real limit, got ${line.rightLimit}`)
+})

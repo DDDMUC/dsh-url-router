@@ -201,6 +201,18 @@ window.__ModuleLoader__.load({
 				// Which element the router aligned the bar to, and the stretch it used: the decision is
 				// made from the page's markup, and from outside there is no other way to check it.
 				anchor: window.__dshUrlRouter?.report?.()?.anchor ?? null,
+				// The line itself: which stretches the placement treated as occupied, and which one it
+				// picked. This is the ground truth for "the bar is over a button" reports.
+				band: (() => {
+					try {
+						const line = window.__dshUrlRouter?.report?.()?.anchor ?? null
+						const api = window.__dshUrlRouter
+						const probe = api?.reportLine ?? null
+						return probe === null ? null : probe()
+					} catch {
+						return null
+					}
+				})(),
 				candidates,
 				bar: box === null ? null : {
 					box,
