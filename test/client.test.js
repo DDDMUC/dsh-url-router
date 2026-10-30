@@ -4392,3 +4392,25 @@ test('reaching for the drop-down does not put it away', () => {
   // Then the list is still there to pick from
   assert.notEqual(list.getAttribute('data-open'), null)
 })
+
+test('a package page that publishes its sections names the one showing', () => {
+  // Given free-search's page as it really opens: the *package* page, no component segment, and a
+  // rail that publishes the section on screen
+  const dom = fakeDom([])
+  addPluginRow(dom, 'dsh-free-search')
+  const detail = dom.document.createElement('div')
+  detail.setAttribute('data-plugin-detail', 'dsh-free-search')
+  dom.body.appendChild(detail)
+  const card = dom.document.createElement('div')
+  card.setAttribute('data-dsh-fs-section', 'behavior')
+  dom.body.appendChild(card)
+  const env = environment({ hash: '#/panel/plugins/dsh-free-search', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // When the screen settles
+  triggerObservers(dom)
+  // Then the address bar names the section too
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-free-search/behavior')
+})
