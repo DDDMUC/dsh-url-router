@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN" data-platform="darwin">
+<head>
+<meta charset="utf-8">
+<title>free-search 分区链接演练台</title>
+<style>
+  body { margin: 0; font: 13px/1.5 -apple-system, "PingFang SC", sans-serif; background: #fff; color: #1b1f27; }
+  #root { padding: 12px; }
+  #report { position: fixed; left: 8px; top: 8px; z-index: 9999; background: #111a2e; color: #cfe0ff;
+            font: 11px/1.6 ui-monospace, Menlo, monospace; padding: 10px 12px; border-radius: 8px; max-width: 92vw; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<pre id="report">渲染中…</pre>
+<script src="vendor/react.production.min.js"></script>
+<script src="vendor/react-dom.production.min.js"></script>
+<script>
+const report = document.getElementById('report')
+const log = line => { report.textContent += '\n' + line }
+report.textContent = ''
+
+// jsx-runtime 的一行 shim：插件用 jsx/jsxs 建元素，转给 React.createElement
+const jsx = (type, props, key) => {
+  const { children, ...rest } = props || {}
+  const args = [type, key === undefined ? rest : { ...rest, key }]
+  if (children !== undefined) args.push(children)
+  return React.createElement(...args)
+}
+
+let captured = null
+const require = name => {
+  if (name === 'react') return window.React
+  if (name === 'react-dom') return window.ReactDOM
+  if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: React.Fragment }
+  if (name === 'react-dom/client') return window.ReactDOM
+  return {}
+}
+
+// 假 bridge：插件靠 /api/dsh-free-search-settings/describe 拿配置，这里给它一个能渲染的最小形状
+const ok = value => Promise.resolve({ ok: true, json: async () => ({ ok: true, value }) })
+window.fetch = url => {
+  const u = String(url)
+  if (u.includes('/credentials-status')) return ok({ configured: {} })
+  if (u.includes('/describe')) return ok({ writable: true, value: {} })
+  return ok({})
+}
+
+const slots = {
+  inject: (name, fn) => { try { fn() } catch (error) { log('inject ' + name + ' 抛错: ' + error.message) } },
+  register: (desc, render) => { if (captured === null) captured = render; return () => {} },
+  entries: () => [],
+}
+const ctx = {
+  slots,
+  get: () => undefined,
+  sessions: { list: () => ({ byId: {}, order: [] }) },
+  workspaces: { list: () => [] },
+  uiWorkspace: {}, layout: {},
+  on: () => () => {},
+  inject: () => {},
+  provide: () => {},
+  effect: fn => { try { return fn() } catch { return () => {} } },
+  logger: { warn: () => {}, info: () => {} },
+}
+
+window.__ModuleLoader__ = {
+  load({ id, factory }) {
+    log('插件已加载: ' + id)
+    try {
+      factory(require).apply(ctx)
+      log('apply 完成，捕获到渲染函数: ' + (captured !== null))
+    } catch (error) {
+      log('apply 抛错: ' + (error && error.stack || error))
+    }
+  },
+}
+
+window.__harnessReady = false
+window.__dumpSections = () => {
+  const nodes = [...document.querySelectorAll('[data-dsh-fs-section]')]
+  log('')
+  log('页面根发布的当前分区: ' + (document.querySelector('[data-dsh-panel-section]')?.getAttribute('data-dsh-panel-section') ?? '(无)'))
+  log('带 data-dsh-fs-section 的元素: ' + nodes.length)
+  for (const node of nodes) {
+    log('  ' + String(node.tagName).toLowerCase() + '  ' + (node.getAttribute('data-dsh-fs-section') ?? '') + '  ' + (node.getAttribute('href') ?? '(无 href ✗)'))
+  }
+  log('侧栏项总数（应为 6 个 a）: ' + document.querySelectorAll('a[data-dsh-fs-section]').length)
+}
+</script>
+<script src="../../../dsh-free-search/lib/client.js"></script>
+<script>
+// 渲染插件注册的那个页面（page 模式），然后清点侧栏
+const CASE = new URLSearchParams(location.search).get('case') || 'initial'
+// 监视滚动：粘贴分区链接后，插件应当自己把对应分区滚进视野
+const scrolled = []
+const original = Element.prototype.scrollIntoView
+Element.prototype.scrollIntoView = function (...args) {
+  scrolled.push(this.getAttribute('data-dsh-section') || this.id || this.tagName)
+  return original.apply(this, args)
+}
+
+setTimeout(() => {
+  if (captured === null) { log('没有捕获到渲染函数 ✗'); window.__harnessReady = true; return }
+  try {
+    const element = captured({ view: 'page' })
+    ReactDOM.createRoot(document.getElementById('root')).render(element)
+    setTimeout(() => {
+      window.__dumpSections()
+      if (CASE === 'link') {
+        // 模拟"粘贴一条分区链接"：浏览器改 hash 并派发 hashchange
+        log('')
+        log('把地址栏改成 #/panel/plugins/dsh-free-search/behavior 并派发 hashchange …')
+        location.hash = '#/panel/plugins/dsh-free-search/behavior'
+        window.dispatchEvent(new HashChangeEvent('hashchange'))
+        setTimeout(() => {
+          log('scrollIntoView 被调用到: ' + JSON.stringify(scrolled))
+          log('滚到的是 behavior 吗: ' + (scrolled.includes('behavior') ? '是 ✓' : '否 ✗'))
+          const active = document.querySelector('.dshfs-railItemActive')?.getAttribute('data-dsh-fs-section') ?? '(无)'
+          log('当前高亮的侧栏项: ' + active)
+          window.__harnessReady = true
+        }, 700)
+      } else {
+        window.__harnessReady = true
+      }
+    }, 600)
+  } catch (error) {
+    log('渲染抛错: ' + (error && error.stack || error))
+    window.__harnessReady = true
+  }
+}, 200)
+</script>
+</body>
+</html>
