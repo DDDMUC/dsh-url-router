@@ -4540,7 +4540,7 @@ test('without a corner the bar still finds the shell header row by its class', (
   assert.ok(box.left >= 440, `expected the bar after the title, got ${box.left}`)
 })
 
-test('a sidebar heading does not win over the page title', () => {
+test('a screen with no shell row takes the top strip, not the page title', () => {
   // Given a narrow sidebar heading and a page title in the wide column, and no shell row at all
   const { dom } = openMacBar({ innerWidth: 1200 })
   const sidebarHeading = dom.document.createElement('h2')
@@ -4556,9 +4556,10 @@ test('a sidebar heading does not win over the page title', () => {
   dom.body.appendChild(pageAction)
   triggerObservers(dom)
   const box = barBoxOf(dom)
-  // Then the bar sits in the wide column, not in the sidebar
+  // Then the bar is on the window's top strip — the line the shell's own controls sit on — rather
+  // than a block lower on the page's own title
   assert.notEqual(box.display, 'none')
-  assert.ok(box.left >= 300, `expected the wide column, got ${box.left}`)
+  assert.ok(box.top <= 44, `expected the top strip, got ${box.top}`)
 })
 
 test('a header scrolled above the viewport still places the bar on screen', () => {
