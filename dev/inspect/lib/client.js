@@ -201,6 +201,24 @@ window.__ModuleLoader__.load({
 				// Which element the router aligned the bar to, and the stretch it used: the decision is
 				// made from the page's markup, and from outside there is no other way to check it.
 				anchor: window.__dshUrlRouter?.report?.()?.anchor ?? null,
+				// 插件页面自己发布的"分区"（free-search 的六个分区）：当前分区 + 侧栏那几项到底是
+				// 什么元素、href 指向哪。这是"分区链接能不能复制/打开"唯一的现场证据。
+				sections: (() => {
+					try {
+						const nodes = [...(document?.querySelectorAll?.('[data-dsh-fs-section]') ?? [])].slice(0, 10)
+						return {
+							current: document?.querySelector?.('[data-dsh-panel-section]')?.getAttribute?.('data-dsh-panel-section') ?? null,
+							items: nodes.map(node => ({
+								tag: String(node.tagName ?? '').toLowerCase(),
+								section: node.getAttribute?.('data-dsh-fs-section') ?? null,
+								href: node.getAttribute?.('href') ?? null,
+								active: node.getAttribute?.('class')?.includes('Active') === true,
+							})),
+						}
+					} catch {
+						return null
+					}
+				})(),
 				// The line itself: which stretches the placement treated as occupied, and which one it
 				// picked. This is the ground truth for "the bar is over a button" reports.
 				// Deliberately not named `band`: an older probe already owns that key in this object
