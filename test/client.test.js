@@ -3093,19 +3093,21 @@ test('on a screen without a header row the bar gives way to what the page draws 
   assert.ok(width >= 120, `width ${width}`)
 })
 
-test('a band the bar cannot fit beside hides it instead of covering anything', () => {
+test('a line with nothing free still keeps the bar visible, at the right end', () => {
   // Given a page whose content fills the whole line
-  const storage = new Map([
-    ['dsh-url-router-placement', JSON.stringify({ top: 12, viewport: 1440, gap: { left: 660, right: 1820 } })],
-  ])
-  const { dom } = openMacBar({ storage })
+  const { dom } = openMacBar({ innerWidth: 1440 })
   const strip = dom.document.createElement('button')
   strip.getBoundingClientRect = () => ({ top: 0, left: 0, width: 1440, height: 60 })
   dom.body.appendChild(strip)
   triggerObservers(dom)
-  // Then the bar is hidden rather than drawn over the content
   const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
-  assert.equal(bar.style.display, 'none')
+  // Then the bar is still there — never hidden — parked at the right end where the window's own
+  // controls leave the most room (asked for 2026-10-30: the address bar must always be usable)
+  assert.notEqual(bar.style.display, 'none')
+  const left = Number.parseInt(bar.style.left, 10)
+  const width = Number.parseInt(bar.style.width, 10)
+  assert.ok(left + width <= 1440, `expected the bar inside the window, got ${left}+${width}`)
+  assert.ok(width > 0, `expected a real width, got ${width}`)
 })
 
 test('a collapsed right bar contributes no pane to the address bar', () => {
