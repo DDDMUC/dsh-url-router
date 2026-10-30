@@ -4414,3 +4414,35 @@ test('a package page that publishes its sections names the one showing', () => {
   // Then the address bar names the section too
   assert.equal(env.location.hash, '#/panel/plugins/dsh-free-search/behavior')
 })
+
+test('the bar keeps off the title it shares a line with', () => {
+  // Given a macOS header row: a title and a mode chip at its left, the shell's own corner at its right
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  const row = dom.document.createElement('div')
+  row.getBoundingClientRect = () => ({ top: 8, left: 0, width: 1200, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = 'dsh-url-router'
+  title.getBoundingClientRect = () => ({ top: 12, left: 300, width: 110, height: 26 })
+  const mode = dom.document.createElement('span')
+  mode.textContent = '标准模式'
+  mode.getBoundingClientRect = () => ({ top: 12, left: 415, width: 70, height: 26 })
+  // The corner lives in a wrapper of its own, holding nothing but the buttons — the shape the real
+  // header has, and the reason walking up to a wide-enough ancestor is needed.
+  const wrapper = dom.document.createElement('div')
+  wrapper.getBoundingClientRect = () => ({ top: 8, left: 1050, width: 140, height: 34 })
+  const corner = dom.document.createElement('div')
+  corner.setAttribute('data-conversation-header-corner', '')
+  corner.getBoundingClientRect = () => ({ top: 8, left: 1050, width: 140, height: 34 })
+  wrapper.appendChild(corner)
+  row.appendChild(title)
+  row.appendChild(mode)
+  row.appendChild(wrapper)
+  dom.body.appendChild(row)
+  // When the screen settles
+  triggerObservers(dom)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  // Then the bar sits in the free stretch between the title and the corner, not from the left edge
+  assert.notEqual(bar.style.display, 'none')
+  const left = Number.parseInt(bar.style.left, 10)
+  assert.ok(left >= 485, `expected the bar to start after the title, got ${left}`)
+})
