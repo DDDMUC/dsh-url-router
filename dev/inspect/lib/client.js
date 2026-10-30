@@ -175,6 +175,8 @@ window.__ModuleLoader__.load({
 			for (const node of all) {
 				if (topStrip.length >= 8) break
 				if (node === bar || (bar !== null && bar.contains?.(node) === true)) continue
+				// Leaves only: a container's box is the whole window and says nothing about the line.
+				if ((node.children?.length ?? 0) > 0) continue
 				const rect = (() => {
 					try {
 						return boxOf(node)

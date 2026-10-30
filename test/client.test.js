@@ -754,8 +754,10 @@ if (notHidden !== null) {
       return node
     },
     createElementNS: (_namespace, tag) => new Node(tag),
-    querySelector: selector => body.descendants().find(node => node.matches(selector)) ?? null,
-    querySelectorAll: selector => body.descendants().filter(node => node.matches(selector)),
+    // The whole document, not just the body: the real one searches every subtree, and a hook that
+    // lives outside the body (the shell's header corner does, in another tree) has to be findable.
+    querySelector: selector => [...head.descendants(), ...body.descendants()].find(node => node.matches(selector)) ?? null,
+    querySelectorAll: selector => [...head.descendants(), ...body.descendants()].filter(node => node.matches(selector)),
     listeners: new Map(),
     addEventListener(type, handler) {
       const set = this.listeners.get(type) ?? new Set()
@@ -4717,4 +4719,28 @@ test('the address bar is always there, and only draws a frame once it is used', 
   const macInput = /\[data-dsh-url-router-platform="mac"\] input\{([^}]*)\}/.exec(sheets)
   assert.ok(macInput !== null, 'the mac input rule must exist')
   assert.ok(macInput[1].includes('background:transparent'), 'the mac input must stay unfilled')
+})
+
+test('the bar stops where the shell says its header buttons begin', () => {
+  // Given the shell's own header corner (the box that holds its buttons) hanging in another subtree —
+  // the shape the real window has: its controls are not reachable by a document-wide query, which is
+  // exactly why the band scan cannot see them and the corner is the only honest right-hand limit
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  const row = dom.document.createElement('div')
+  row.setAttribute('class', 'hash_titleRow_hash')
+  row.getBoundingClientRect = () => ({ top: 10, left: 0, width: 1280, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = 'dsh-url-router'
+  title.getBoundingClientRect = () => ({ top: 14, left: 300, width: 110, height: 26 })
+  row.appendChild(title)
+  dom.body.appendChild(row)
+  const corner = dom.document.createElement('div')
+  corner.setAttribute('data-conversation-header-corner', '')
+  corner.getBoundingClientRect = () => ({ top: 10, left: 1000, width: 280, height: 34 })
+  dom.document.head.appendChild(corner)
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar's right edge never reaches into that box
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left + box.width <= 1000, `expected the bar to stop at the corner, got ${box.left + box.width}`)
 })
