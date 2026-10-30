@@ -4605,3 +4605,27 @@ test('on a page that draws its own title the shell corner still wins', () => {
   assert.notEqual(box.display, 'none')
   assert.ok(box.top >= 8 && box.top <= 42, `expected the shell header line, got ${box.top}`)
 })
+
+test('on the top strip the bar fits between the controls that live there', () => {
+  // Given the strip's real occupants: the shell's sidebar toggle at its left, a plugin's floating
+  // button at its right, and a page whose own title sits a block lower
+  const { dom } = openMacBar({ innerWidth: 1400 })
+  const toggle = dom.document.createElement('button')
+  toggle.getBoundingClientRect = () => ({ top: 10, left: 100, width: 30, height: 28 })
+  dom.body.appendChild(toggle)
+  const floating = dom.document.createElement('button')
+  floating.getBoundingClientRect = () => ({ top: 10, left: 1360, width: 28, height: 28 })
+  dom.body.appendChild(floating)
+  const pageTitle = dom.document.createElement('h2')
+  pageTitle.textContent = '插件'
+  pageTitle.getBoundingClientRect = () => ({ top: 95, left: 670, width: 60, height: 26 })
+  dom.body.appendChild(pageTitle)
+  // When the screen settles
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar is on the strip, clear of both controls and clear of the page title's line
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.top <= 44, `expected the strip, got ${box.top}`)
+  assert.ok(box.left > 130, `expected the bar after the toggle, got ${box.left}`)
+  assert.ok(box.left + box.width < 1360, `expected the bar before the floating button, got ${box.left + box.width}`)
+})
