@@ -4761,3 +4761,28 @@ test('the placement can be asked what it measured on the line', () => {
   assert.ok(Array.isArray(line.runs) && line.runs.length > 0, 'expected the free stretches')
   assert.ok(line.rightLimit > 0 && line.rightLimit <= 1280, `expected a real limit, got ${line.rightLimit}`)
 })
+
+test('an icon that is not a button still keeps the bar off it', () => {
+  // Given the shell's own header icons, which are bare svg / img rather than buttons (measured on the
+  // real window: the band probe hit an svg exactly where the bar's right edge ended)
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  const row = dom.document.createElement('div')
+  row.setAttribute('class', 'hash_titleRow_hash')
+  row.getBoundingClientRect = () => ({ top: 10, left: 0, width: 1280, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = 'dsh-url-router'
+  title.getBoundingClientRect = () => ({ top: 14, left: 300, width: 110, height: 26 })
+  row.appendChild(title)
+  const icon = dom.document.createElement('svg')
+  icon.getBoundingClientRect = () => ({ top: 12, left: 1030, width: 24, height: 24 })
+  // In another subtree, the way the shell's own icons are: the placement's own walk starts at the body
+  // and never reaches them, so only a document-wide selector can see them
+  dom.document.head.appendChild(icon)
+  dom.body.appendChild(row)
+  // When the screen settles
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar's right edge stays clear of the icon
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left + box.width <= 1030, `expected the bar clear of the icon, got ${box.left + box.width}`)
+})
