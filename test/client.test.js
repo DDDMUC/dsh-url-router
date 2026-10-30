@@ -4696,3 +4696,25 @@ test('an element parked outside the window never pushes the bar off screen', () 
   assert.ok(box.left >= 0, `expected a non-negative left, got ${box.left}`)
   assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left}+${box.width}`)
 })
+
+test('the address bar is always there, and only draws a frame once it is used', () => {
+  // Given a mac window with the bar mounted
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  addMacHeaderRow(dom)
+  triggerObservers(dom)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  // Then the bar itself is never hidden by a placement decision
+  assert.notEqual(bar.style.display, 'none')
+  // And the look is the one asked for: no frame and no fill while idle, a frame only on focus
+  const sheets = [...(dom.document.head?.children ?? []), ...(dom.body?.children ?? [])]
+    .filter(node => String(node.tagName).toUpperCase() === 'STYLE')
+    .map(node => String(node.textContent ?? ''))
+    .join('\n')
+  assert.ok(sheets.includes('border:1px solid transparent'), 'the input must carry no visible frame while idle')
+  assert.ok(/:focus\{border-color:/.test(sheets), 'the frame must appear on focus')
+  // The mac input rule specifically: a bare "background:transparent" appears in other rules too, so
+  // the assertion has to look inside this one (a looser check passed even with the rule removed).
+  const macInput = /\[data-dsh-url-router-platform="mac"\] input\{([^}]*)\}/.exec(sheets)
+  assert.ok(macInput !== null, 'the mac input rule must exist')
+  assert.ok(macInput[1].includes('background:transparent'), 'the mac input must stay unfilled')
+})
