@@ -149,7 +149,7 @@ window.__ModuleLoader__.load({
 			for (const selector of ['[class*="titleRow"]', 'h1', 'h2', 'h3', '[role="heading"]']) {
 				const found = document?.querySelectorAll?.(selector) ?? []
 				for (const node of found) {
-					if (candidates.length >= 8) break
+					if (candidates.length >= 24) break
 					const rect = boxOf(node)
 					if (rect === null) continue
 					candidates.push({
