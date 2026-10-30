@@ -4944,3 +4944,39 @@ test('a container eight hundred pixels wide is not a header control', () => {
   assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left + box.width}`)
 })
 
+
+test('every one of the six free-search sections round-trips through the address bar', () => {
+  // Given the six sections free-search publishes (引擎 / 回退 / 语言池 / 搜索行为 / 抓取 / 性能)
+  const sections = ['engines', 'fallback', 'pools', 'behavior', 'fetch', 'performance']
+  for (const section of sections) {
+    const dom = fakeDom([])
+    addPluginRow(dom, 'dsh-free-search')
+    const detail = dom.document.createElement('div')
+    detail.setAttribute('data-plugin-detail', 'dsh-free-search')
+    dom.body.appendChild(detail)
+    const env = environment({ hash: '#/panel/plugins/dsh-free-search', panels: ['plugins'], activePanelId: 'plugins' })
+    env.window.document = dom.document
+    env.window.getComputedStyle = () => ({ position: 'static' })
+    env.window.MutationObserver = dom.FakeObserver
+    open(env)
+    const rowDetail = dom.document.createElement('div')
+    rowDetail.setAttribute('data-plugin-row-detail', 'dsh-free-search#web-search-free')
+    dom.body.appendChild(rowDetail)
+    const card = dom.document.createElement('div')
+    // The page root publishes the section on screen; the rail item is a real link now
+    card.setAttribute('data-dsh-fs-section', section)
+    const rail = dom.document.createElement('a')
+    rail.setAttribute('data-dsh-fs-section', section)
+    rail.setAttribute('href', `#/panel/plugins/dsh-free-search/${section}`)
+    card.appendChild(rail)
+    dom.body.appendChild(card)
+    // When the screen settles
+    triggerObservers(dom)
+    // Then the address bar names that section — for every one of the six, not just the first
+    assert.equal(
+      env.location.hash,
+      `#/panel/plugins/dsh-free-search/web-search-free/${section}`,
+      `expected the ${section} section in the address bar`,
+    )
+  }
+})
