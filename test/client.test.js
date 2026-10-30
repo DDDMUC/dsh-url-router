@@ -4911,3 +4911,32 @@ test('a tall paragraph crossing the line does not count as standing on it', () =
   assert.ok(box.left >= 412, `expected the bar after the title, got ${box.left}`)
   assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left + box.width}`)
 })
+
+test('a container eight hundred pixels wide is not a header control', () => {
+  // Given a container whose box crosses the line and whose width is that of a whole column (measured on
+  // the real window: `366-1200(sel:div)` was read as a control and swallowed the middle of the line)
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  const row = dom.document.createElement('div')
+  row.setAttribute('class', 'hash_titleRow_hash')
+  row.getBoundingClientRect = () => ({ top: 10, left: 0, width: 1280, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = 'dsh-url-router'
+  title.getBoundingClientRect = () => ({ top: 14, left: 301, width: 111, height: 26 })
+  row.appendChild(title)
+  dom.body.appendChild(row)
+  const column = dom.document.createElement('div')
+  column.setAttribute('role', 'img')
+  column.getBoundingClientRect = () => ({ top: 8, left: 366, width: 834, height: 30 })
+  dom.body.appendChild(column)
+  // When the screen settles
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar is not shoved away by it: it starts after the title and stays in the window
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 412, `expected the bar after the title, got ${box.left}`)
+  // And it must not be shoved to the far right either: treating the column as occupied leaves only a
+  // sliver at the window's edge, which is how this bug showed up (the first version of this test only
+  // checked "not too far left" and stayed green with the cap removed).
+  assert.ok(box.left <= 700, `expected the bar to keep the middle, got ${box.left}`)
+  assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left + box.width}`)
+})
