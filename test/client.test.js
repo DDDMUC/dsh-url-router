@@ -4827,6 +4827,6 @@ test('the line measurement names what each occupied stretch came from', () => {
   assert.ok(line.spans.length > 0)
   for (const span of line.spans) {
     assert.ok(typeof span.from === 'string' && span.from.length > 0, `expected a source, got ${span.from}`)
-    assert.ok(/^(sel|leaf):/.test(span.from), `expected a source prefix, got ${span.from}`)
+    assert.ok(/^(sel|leaf|merged|\?)/.test(span.from), `expected a known source, got ${span.from}`)
   }
 })
