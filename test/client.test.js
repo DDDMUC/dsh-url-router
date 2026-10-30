@@ -4355,8 +4355,10 @@ test('a plugin page that publishes its sections names the one showing', () => {
   dom.body.appendChild(rowDetail)
   const card = dom.document.createElement('div')
   card.setAttribute('data-dsh-fs-section', 'engines')
-  const rail = dom.document.createElement('button')
+  // The rail item is a real link now (so it can be copied or opened), not a button
+  const rail = dom.document.createElement('a')
   rail.setAttribute('data-dsh-fs-section', 'engines')
+  rail.setAttribute('href', '#/panel/plugins/dsh-free-search/engines')
   card.appendChild(rail)
   dom.body.appendChild(card)
   // When the screen settles
@@ -4364,6 +4366,7 @@ test('a plugin page that publishes its sections names the one showing', () => {
   // Then the address bar names the section as well as the page
   assert.equal(env.location.hash, '#/panel/plugins/dsh-free-search/web-search-free/engines')
 })
+
 
 test('leaving the bar puts the recent list away', () => {
   // Given a bar whose drop-down is open
