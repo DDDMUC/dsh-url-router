@@ -112,6 +112,14 @@ setTimeout(() => {
     setWidth(0)
     window.dispatchEvent(new Event('resize'))
     settle('宽度读成 0 之后')
+  } else if (CASE === 'tall') {
+    // 真机上的形状：会话正文里一个很长的段落，盒子高到穿过顶部那一条线
+    const main = document.querySelector('.main')
+    const para = document.createElement('p')
+    para.textContent = '很长的回复正文，盒子高到穿过顶部那一条线'
+    para.style.cssText = 'position:absolute;top:0;left:366px;width:823px;height:2000px;margin:0;color:#8b93a7'
+    main.appendChild(para)
+    settle('正文里有一个高到穿过那条线的段落')
   } else if (CASE === 'panel') {
     // 切到没有头部行的界面（面板页）
     const main = document.querySelector('.main')

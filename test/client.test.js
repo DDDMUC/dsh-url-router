@@ -4885,3 +4885,29 @@ test('switching to a screen with no header row keeps the bar visible', () => {
   assert.equal(box.top, 11)
   assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left + box.width}`)
 })
+
+test('a tall paragraph crossing the line does not count as standing on it', () => {
+  // Given a conversation screen whose transcript holds a long paragraph — the box crosses the bar's
+  // 26px line, but the paragraph is not a thing on that line (measured on the real window: a `<p>`
+  // spanning 366..1189, which used to be read as "this whole width is taken")
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  const row = dom.document.createElement('div')
+  row.setAttribute('class', 'hash_titleRow_hash')
+  row.getBoundingClientRect = () => ({ top: 10, left: 0, width: 1280, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = 'dsh-url-router'
+  title.getBoundingClientRect = () => ({ top: 14, left: 301, width: 111, height: 26 })
+  row.appendChild(title)
+  dom.body.appendChild(row)
+  const paragraph = dom.document.createElement('p')
+  paragraph.textContent = '很长的回复正文，盒子高到穿过顶部那一条线'
+  paragraph.getBoundingClientRect = () => ({ top: 0, left: 366, width: 823, height: 2000 })
+  dom.body.appendChild(paragraph)
+  // When the screen settles
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar is not pushed off the title by it: it starts after the title and stays in the window
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 412, `expected the bar after the title, got ${box.left}`)
+  assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left + box.width}`)
+})
