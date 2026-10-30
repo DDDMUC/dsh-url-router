@@ -4326,3 +4326,30 @@ test('a press inside the bar leaves the recent list alone', () => {
   assert.notEqual(list.getAttribute('data-open'), null)
 })
 
+
+test('a plugin page that publishes its sections names the one showing', () => {
+  // Given the free-search component page, whose root now publishes the section on screen
+  const dom = fakeDom([])
+  addPluginRow(dom, 'dsh-free-search')
+  const detail = dom.document.createElement('div')
+  detail.setAttribute('data-plugin-detail', 'dsh-free-search')
+  dom.body.appendChild(detail)
+  const env = environment({ hash: '#/panel/plugins/dsh-free-search', panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const rowDetail = dom.document.createElement('div')
+  rowDetail.setAttribute('data-plugin-row-detail', 'dsh-free-search#web-search-free')
+  dom.body.appendChild(rowDetail)
+  const card = dom.document.createElement('div')
+  card.setAttribute('data-dsh-fs-section', 'engines')
+  const rail = dom.document.createElement('button')
+  rail.setAttribute('data-dsh-fs-section', 'engines')
+  card.appendChild(rail)
+  dom.body.appendChild(card)
+  // When the screen settles
+  triggerObservers(dom)
+  // Then the address bar names the section as well as the page
+  assert.equal(env.location.hash, '#/panel/plugins/dsh-free-search/web-search-free/engines')
+})
