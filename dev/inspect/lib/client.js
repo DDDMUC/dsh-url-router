@@ -146,7 +146,7 @@ window.__ModuleLoader__.load({
 			// What the bar could have aligned to, and where each of those sits: the bar's position is
 			// decided by which of these it picks, and that is otherwise invisible from outside.
 			const candidates = []
-			for (const selector of ['[class*="titleRow"]', 'h1', 'h2', 'h3', '[role="heading"]']) {
+			for (const selector of ['[data-conversation-header-corner]', '[class*="titleRow"]', 'h1', 'h2', 'h3', '[role="heading"]']) {
 				const found = document?.querySelectorAll?.(selector) ?? []
 				for (const node of found) {
 					if (candidates.length >= 24) break

@@ -4576,3 +4576,22 @@ test('a header scrolled above the viewport still places the bar on screen', () =
   assert.ok(box.top >= 8, `expected an on-screen line, got ${box.top}`)
 })
 
+
+test('on a page that draws its own title the shell corner still wins', () => {
+  // Given a panel page: the shell's corner on its header row, and the page's own title further down
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  addMacHeaderRow(dom, { top: 8 })
+  const pageTitle = dom.document.createElement('h2')
+  pageTitle.textContent = '插件'
+  pageTitle.getBoundingClientRect = () => ({ top: 70, left: 670, width: 60, height: 26 })
+  dom.body.appendChild(pageTitle)
+  const pageAction = dom.document.createElement('button')
+  pageAction.getBoundingClientRect = () => ({ top: 70, left: 1050, width: 120, height: 26 })
+  dom.body.appendChild(pageAction)
+  // When the screen settles
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar is on the shell's header line, not on the page's own title line
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.top >= 8 && box.top <= 42, `expected the shell header line, got ${box.top}`)
+})
