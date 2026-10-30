@@ -2799,7 +2799,7 @@ test('the bar is visible by default, and hides until hovered when asked', () => 
 
 test('with the hover preference the bar appears under the pointer only', () => {
   // Given a window that asked for the hover behaviour
-  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage: storedSettings({ hoverReveal: true }) })
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage: storedSettings({ hoverReveal: true }) })
   const { bar } = barOf(dom)
   // Then it sits in the hover state, hidden until the pointer arrives
   assert.equal(bar.getAttribute('data-dsh-url-router-hover'), '')
@@ -2807,8 +2807,10 @@ test('with the hover preference the bar appears under the pointer only', () => {
   // When the pointer is over it, it shows ...
   bar.fire('mouseenter', {})
   assert.equal(bar.getAttribute('data-dsh-url-router-shown'), '')
-  // ... and when the pointer leaves without focus, it hides again
+  // ... and when the pointer leaves without focus, it hides again — after the short grace that lets
+  // the pointer cross the gap to the drop-down hanging below without the bar flickering away
   bar.fire('mouseleave', {})
+  env.api.advance(400)
   assert.equal(bar.getAttribute('data-dsh-url-router-shown'), null)
 })
 
