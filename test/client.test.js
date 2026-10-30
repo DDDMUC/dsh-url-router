@@ -4551,6 +4551,15 @@ test('a screen with no shell row takes the top strip, not the page title', () =>
   pageHeading.textContent = '插件'
   pageHeading.getBoundingClientRect = () => ({ top: 70, left: 670, width: 60, height: 26 })
   dom.body.appendChild(pageHeading)
+  // And the page's own breadcrumb row, which carries the same class the shell's header does
+  const breadcrumb = dom.document.createElement('div')
+  breadcrumb.setAttribute('class', 'hash_titleRow_hash')
+  breadcrumb.getBoundingClientRect = () => ({ top: 83, left: 340, width: 300, height: 30 })
+  const crumb = dom.document.createElement('span')
+  crumb.textContent = '插件'
+  crumb.getBoundingClientRect = () => ({ top: 87, left: 350, width: 40, height: 22 })
+  breadcrumb.appendChild(crumb)
+  dom.body.appendChild(breadcrumb)
   const pageAction = dom.document.createElement('button')
   pageAction.getBoundingClientRect = () => ({ top: 70, left: 1450, width: 120, height: 26 })
   dom.body.appendChild(pageAction)
