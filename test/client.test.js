@@ -4496,6 +4496,17 @@ const barBoxOf = dom => {
   }
 }
 
+test('the bar is pinned to one line on every screen, like the power button', () => {
+  // Given any mac screen at all
+  const { env, dom } = openMacBar({ innerWidth: 1200 })
+  addMacHeaderRow(dom)
+  triggerObservers(dom)
+  // Then the placement says so, and the line is the constant the power button also sits on
+  const anchor = env.window.__dshUrlRouter.report().anchor
+  assert.equal(anchor.by, 'pinned')
+  assert.equal(anchor.top, 11)
+})
+
 test('the bar takes the shell corner line and stays off the title', () => {
   // Given a header row with the shell's own corner
   const { dom } = openMacBar({ innerWidth: 1200 })
