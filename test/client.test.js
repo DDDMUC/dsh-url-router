@@ -4671,3 +4671,28 @@ test('a chip of icon plus text counts as occupied, so the bar does not sit on it
   assert.notEqual(box.display, 'none')
   assert.ok(box.left >= 245, `expected the bar after the chip, got ${box.left}`)
 })
+
+test('an element parked outside the window never pushes the bar off screen', () => {
+  // Given a header whose only free stretch is measured past the window's right edge (an element with a
+  // stale rect, parked outside) — the shape that put the bar at left 1347 on a 1280-wide window
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  const row = dom.document.createElement('div')
+  row.setAttribute('class', 'hash_titleRow_hash')
+  row.getBoundingClientRect = () => ({ top: 10, left: 0, width: 1740, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = 'dsh-url-router'
+  title.getBoundingClientRect = () => ({ top: 14, left: 300, width: 110, height: 26 })
+  row.appendChild(title)
+  const parked = dom.document.createElement('span')
+  parked.textContent = '很靠右的东西'
+  parked.getBoundingClientRect = () => ({ top: 14, left: 1740, width: 200, height: 26 })
+  row.appendChild(parked)
+  dom.body.appendChild(row)
+  // When the screen settles
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar is inside the window, not off its right edge
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 0, `expected a non-negative left, got ${box.left}`)
+  assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left}+${box.width}`)
+})
