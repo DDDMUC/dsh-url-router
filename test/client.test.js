@@ -5033,3 +5033,31 @@ test('the observer watches the attributes a plugin page uses to publish its sect
   assert.ok(options.attributeFilter.includes('data-dsh-panel-section'), 'generic section attribute must be observed')
   assert.ok(options.attributeFilter.includes('data-dsh-fs-section'), 'the older section attribute must be observed too')
 })
+
+test('every action the power menu publishes is driven through its own item', () => {
+  // Given the menu now publishes four actions (刷新 / 重启 / 定时 / 关闭), which is what the plugin
+  // marks with data-dsh-power-action. The list is the plugin's, not ours: a fifth item works the day
+  // it publishes one.
+  const actions = ['refresh', 'restart', 'schedule', 'shutdown']
+  for (const action of actions) {
+    const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+    const menu = dom.document.createElement('div')
+    menu.setAttribute('data-dshpm-menu', '')
+    menu.setAttribute('data-dsh-power-menu', 'open')
+    const clicked = []
+    for (const each of actions) {
+      const item = dom.document.createElement('button')
+      item.setAttribute('data-dsh-power-action', each)
+      item.click = () => clicked.push(each)
+      menu.appendChild(item)
+    }
+    dom.body.appendChild(menu)
+    const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+    // When that action is typed
+    input.value = `#/power/${action}`
+    input.fire('keydown', { key: 'Enter' })
+    // Then exactly that item is pressed, and the endpoint is not used (the plugin's own flow runs)
+    assert.deepEqual(clicked, [action], `expected only ${action} to be pressed, got ${JSON.stringify(clicked)}`)
+    assert.deepEqual(env.api.fetches, [], `expected no endpoint call for ${action}, got ${JSON.stringify(env.api.fetches)}`)
+  }
+})
