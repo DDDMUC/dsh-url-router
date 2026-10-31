@@ -780,7 +780,9 @@ if (notHidden !== null) {
   const observers = []
   class FakeObserver {
     constructor(callback) { this.callback = callback; this.disconnected = false; observers.push(this) }
-    observe() {}
+    // 记下收到的 options：真实 Browser 会按 attributeFilter 过滤，这里记下来让用例能锁住
+    // "哪些属性必须被观察"（少了某个属性，真机上地址栏就不会跟着动）。
+    observe(target, options) { this.observed = options ?? {} }
     disconnect() { this.disconnected = true }
     trigger() { if (!this.disconnected) this.callback([]) }
   }
@@ -5017,4 +5019,17 @@ test('a page that follows the section contract names its section (generic attrib
   triggerObservers(dom)
   // Then the address bar names that section — the generic spelling is enough on its own
   assert.equal(env.location.hash, '#/panel/plugins/some-plugin/main/tuning')
+})
+
+test('the observer watches the attributes a plugin page uses to publish its section', () => {
+  // Given the plugin mounted against a page
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  // When the observer was started
+  const options = dom.observers.map(observer => observer.observed).find(seen => seen && seen.attributes === true)
+  // Then it filters on both spellings of the section attribute. A page that publishes its section
+  // changes nothing else, so without these the address bar only caught up on an unrelated mutation —
+  // which the reader saw as "the link is right, but very slow".
+  assert.ok(options, 'expected an attribute observer')
+  assert.ok(options.attributeFilter.includes('data-dsh-panel-section'), 'generic section attribute must be observed')
+  assert.ok(options.attributeFilter.includes('data-dsh-fs-section'), 'the older section attribute must be observed too')
 })
