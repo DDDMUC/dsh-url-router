@@ -5098,3 +5098,36 @@ test('a typed #/power still opens the menu', () => {
   // Then the menu opens — typing is an instruction
   assert.ok(clicks >= 1, `expected the menu to open, got ${clicks}`)
 })
+
+test('a line measured before its text exists is measured again shortly after', () => {
+  // Given a header whose title and mode chip come from a deep subtree — so their appearance does not
+  // change the body's child count, which is all the placement cache looks at
+  const { env, dom } = openMacBar({ innerWidth: 1280 })
+  const deep = dom.document.createElement('div')
+  const toggle = dom.document.createElement('button')
+  toggle.getBoundingClientRect = () => ({ top: 10, left: 240, width: 28, height: 28 })
+  deep.appendChild(toggle)
+  dom.body.appendChild(deep)
+  triggerObservers(dom)
+  const first = barBoxOf(dom)
+  assert.equal(first.top, 11)
+  // When the title and the mode chip finally render inside that same deep subtree
+  const row = dom.document.createElement('div')
+  row.setAttribute('class', 'hash_titleRow_hash')
+  row.getBoundingClientRect = () => ({ top: 10, left: 0, width: 1280, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = 'dsh-url-router'
+  title.getBoundingClientRect = () => ({ top: 14, left: 301, width: 111, height: 26 })
+  const chip = dom.document.createElement('span')
+  chip.textContent = '标准模式'
+  chip.getBoundingClientRect = () => ({ top: 14, left: 443, width: 68, height: 26 })
+  row.appendChild(title)
+  row.appendChild(chip)
+  deep.appendChild(row)
+  triggerObservers(dom)
+  // Then the placement re-checks the line a moment later and moves off the chip
+  env.api.advance(200)
+  triggerObservers(dom)
+  const after = barBoxOf(dom)
+  assert.ok(after.left >= 511, `expected the bar clear of the mode chip, got ${after.left}`)
+})
