@@ -5133,3 +5133,29 @@ test('a line measured before its text exists is measured again shortly after', (
   const after = barBoxOf(dom)
   assert.ok(after.left >= 511, `expected the bar clear of the mode chip, got ${after.left}`)
 })
+
+test('a chip whose text is squeezed past its own box still keeps the bar off it', () => {
+  // Given a header whose long title squeezes the mode chip so its text overflows its box
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  const row = dom.document.createElement('div')
+  row.setAttribute('class', 'hash_titleRow_hash')
+  row.getBoundingClientRect = () => ({ top: 10, left: 0, width: 1280, height: 34 })
+  const title = dom.document.createElement('span')
+  title.textContent = '讲解 DSH Web UI 全套插件组件'
+  title.getBoundingClientRect = () => ({ top: 14, left: 100, width: 300, height: 26 })
+  row.appendChild(title)
+  const chip = dom.document.createElement('span')
+  chip.textContent = '标准模式'
+  chip.getBoundingClientRect = () => ({ top: 14, left: 430, width: 68, height: 26 })
+  // 文字比盒子宽：可见的字 extends past 498
+  Object.defineProperty(chip, 'scrollWidth', { configurable: true, get: () => 96 })
+  Object.defineProperty(chip, 'clientWidth', { configurable: true, get: () => 68 })
+  row.appendChild(chip)
+  dom.body.appendChild(row)
+  // When the screen settles
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar starts clear of the visible text, not at the box's right edge
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 526, `expected the bar past the overflowing text, got ${box.left}`)
+})
