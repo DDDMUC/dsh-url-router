@@ -3690,8 +3690,8 @@ test('an open power menu names itself in the address bar', () => {
 })
 
 test('a power link opens the menu, and never presses anything inside it', () => {
-  // Given a link naming the power menu, and a trigger that opens it
-  const dom = fakeDom([])
+  // Given a window with an address bar, and a power trigger that opens the menu
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
   const trigger = dom.document.createElement('button')
   trigger.setAttribute('data-dsh-power-trigger', '')
   let clicks = 0
@@ -3699,18 +3699,20 @@ test('a power link opens the menu, and never presses anything inside it', () => 
     clicks += 1
     const menu = dom.document.createElement('div')
     menu.setAttribute('data-dsh-power-menu', 'open')
+    const item = dom.document.createElement('button')
+    item.setAttribute('data-dsh-power-action', 'shutdown')
+    let itemClicks = 0
+    item.click = () => { itemClicks += 1 }
+    menu.appendChild(item)
     dom.body.appendChild(menu)
   }
   dom.body.appendChild(trigger)
-  const env = environment({ hash: '#/power', panels: [], activePanelId: null })
-  env.window.document = dom.document
-  env.window.getComputedStyle = () => ({ position: 'static' })
-  env.window.MutationObserver = dom.FakeObserver
-  env.api.list('session-a')
-  // When the plugin applies
-  open(env)
-  // Then the menu was opened once, and the route landed on it
-  assert.equal(clicks, 1)
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  // When the reader types the power route
+  input.value = '#/power'
+  input.fire('keydown', { key: 'Enter' })
+  // Then the menu was opened, and nothing inside it was pressed — acting is a person's call
+  assert.ok(clicks >= 1, `expected the menu to open, got ${clicks}`)
   assert.equal(env.location.hash, '#/power')
 })
 
@@ -5060,4 +5062,41 @@ test('every action the power menu publishes is driven through its own item', () 
     assert.deepEqual(clicked, [action], `expected only ${action} to be pressed, got ${JSON.stringify(clicked)}`)
     assert.deepEqual(env.api.fetches, [], `expected no endpoint call for ${action}, got ${JSON.stringify(env.api.fetches)}`)
   }
+})
+
+test('a reload that restores the power route does not reopen the menu', () => {
+  // Given the page loading with `#/power` still in the hash — what the power plugin's own 刷新 /
+  // 重启 leave behind, because the menu route is part of the URL
+  const dom = fakeDom([])
+  const trigger = dom.document.createElement('button')
+  trigger.setAttribute('data-dsh-power-trigger', '')
+  let clicks = 0
+  trigger.click = () => { clicks += 1 }
+  dom.body.appendChild(trigger)
+  const env = environment({ hash: '#/power', panels: [], activePanelId: null })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  env.api.list('session-a')
+  // When the plugin applies
+  open(env)
+  // Then the menu was not opened: a restored hash is state, not an instruction. The address bar
+  // keeps naming the screen, so a manual refresh does not leave it saying `#/power`.
+  assert.equal(clicks, 0, `expected no menu open on boot, got ${clicks}`)
+})
+
+test('a typed #/power still opens the menu', () => {
+  // Given a menu that opens when its trigger is pressed
+  const { env, dom } = openWithTitlebar([], { menuWidth: 120 })
+  const trigger = dom.document.createElement('button')
+  trigger.setAttribute('data-dsh-power-trigger', '')
+  let clicks = 0
+  trigger.click = () => { clicks += 1 }
+  dom.body.appendChild(trigger)
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  // When the reader types it
+  input.value = '#/power'
+  input.fire('keydown', { key: 'Enter' })
+  // Then the menu opens — typing is an instruction
+  assert.ok(clicks >= 1, `expected the menu to open, got ${clicks}`)
 })
