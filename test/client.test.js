@@ -3671,7 +3671,7 @@ test('the settings overlay is named under the official marker and still under th
   }
 })
 
-test('an open power menu names itself in the address bar', () => {
+test('an open power menu is a popover, not a place: the address bar keeps naming the screen', () => {
   // Given the power popover open over a conversation
   const dom = fakeDom([])
   const menu = dom.document.createElement('div')
@@ -3685,8 +3685,10 @@ test('an open power menu names itself in the address bar', () => {
   env.api.view('session-a')
   // When the plugin applies
   open(env)
-  // Then the popover is what is on screen, so it is what the address bar names
-  assert.equal(env.location.hash, '#/power')
+  // Then the address bar still names the conversation. Naming the popover put `#/power` in the URL,
+  // and that route survived the power plugin's own 刷新 / 重启 (their reload restores the hash), so a
+  // manual refresh left the address bar saying `#/power` instead of the conversation.
+  assert.ok(!String(env.location.hash).includes('power'), `expected the screen, got ${env.location.hash}`)
 })
 
 test('a power link opens the menu, and never presses anything inside it', () => {
