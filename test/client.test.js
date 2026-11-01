@@ -5064,25 +5064,23 @@ test('every action the power menu publishes is driven through its own item', () 
   }
 })
 
-test('a reload that restores the power route does not reopen the menu', () => {
-  // Given the page loading with `#/power` still in the hash — what the power plugin's own 刷新 /
-  // 重启 leave behind, because the menu route is part of the URL
-  const dom = fakeDom([])
+test('a reload that restores the power route neither reopens the menu nor keeps the link', () => {
+  // Given the page booting with `#/power` already in the hash — exactly what the power plugin's own
+  // 刷新 / 重启 leave behind, because the menu route is part of the URL
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/power' })
   const trigger = dom.document.createElement('button')
   trigger.setAttribute('data-dsh-power-trigger', '')
   let clicks = 0
   trigger.click = () => { clicks += 1 }
   dom.body.appendChild(trigger)
-  const env = environment({ hash: '#/power', panels: [], activePanelId: null })
-  env.window.document = dom.document
-  env.window.getComputedStyle = () => ({ position: 'static' })
-  env.window.MutationObserver = dom.FakeObserver
-  env.api.list('session-a')
-  // When the plugin applies
-  open(env)
-  // Then the menu was not opened: a restored hash is state, not an instruction. The address bar
-  // keeps naming the screen, so a manual refresh does not leave it saying `#/power`.
+  env.api.list('session-abc')
+  triggerObservers(dom)
+  // Then the menu is not opened (a restored hash is state, not an instruction)…
   assert.equal(clicks, 0, `expected no menu open on boot, got ${clicks}`)
+  // …and the address bar does not keep saying `#/power`: it says what is on screen
+  const input = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]').querySelector('input')
+  assert.ok(!String(input.value).includes('power'), `expected the bar to name the screen, got ${input.value}`)
+  assert.equal(env.location.hash.includes('power'), false, `expected the hash to leave #/power, got ${env.location.hash}`)
 })
 
 test('a typed #/power still opens the menu', () => {
