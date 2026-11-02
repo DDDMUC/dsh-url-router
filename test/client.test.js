@@ -5162,3 +5162,19 @@ test('a chip whose text is squeezed past its own box still keeps the bar off it'
   assert.notEqual(box.display, 'none')
   assert.ok(box.left >= 526, `expected the bar past the overflowing text, got ${box.left}`)
 })
+
+test('an open right-hand panel is a surface of its own: the bar stops at its left edge', () => {
+  // Given a conversation with the right-hand panel open (the browser view), whose root sits at x=720
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280 })
+  const panel = dom.document.createElement('div')
+  panel.setAttribute('data-sidebar-right-session', 'session-a')
+  panel.getBoundingClientRect = () => ({ top: 0, left: 720, width: 560, height: 800 })
+  dom.body.appendChild(panel)
+  // When the screen settles
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar never reaches into the panel
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left + box.width <= 720, `expected the bar to stop at the panel, got ${box.left + box.width}`)
+})
