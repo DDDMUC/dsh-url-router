@@ -5075,7 +5075,10 @@ test('a reload that restores the power route neither reopens the menu nor keeps 
   let clicks = 0
   trigger.click = () => { clicks += 1 }
   dom.body.appendChild(trigger)
+  // A real boot always has a screen under it; without one the canonical is empty and there is nothing
+  // for the bar to name (that made this fixture assert the wrong thing).
   env.api.list('session-abc')
+  env.api.view('session-abc')
   triggerObservers(dom)
   // Then the menu is not opened (a restored hash is state, not an instruction)…
   assert.equal(clicks, 0, `expected no menu open on boot, got ${clicks}`)
