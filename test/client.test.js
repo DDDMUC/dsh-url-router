@@ -4880,6 +4880,91 @@ test('a window that cannot be measured does not turn the bar into a sliver', () 
   assert.ok(after.width >= 120, `expected the bar to keep a real width, got ${after.width}`)
 })
 
+test('dragging the handle sets the length, and the length keeps the window\'s share', () => {
+  // Given a mac screen with room to the right of what the header row draws
+  const { env, dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280, corner: false })
+  triggerObservers(dom)
+  const before = barBoxOf(dom)
+  assert.equal(before.width, 700, 'the design\'s own width, until the reader drags')
+  // When the reader drags the right-hand edge two hundred pixels to the left
+  const grip = before.bar.querySelector('[data-dsh-url-router-grip]')
+  assert.notEqual(grip, null, 'the bar carries a handle')
+  grip.fire('pointerdown', { button: 0, clientX: before.left + before.width, preventDefault() {} })
+  dom.document.fire('pointermove', { clientX: before.left + before.width - 200 })
+  dom.document.fire('pointerup', {})
+  // Then the bar is that much shorter ...
+  const dragged = barBoxOf(dom)
+  assert.equal(dragged.width, 500, `expected the dragged length, got ${dragged.width}`)
+  // ... and the length is a share of the window, so shrinking the window shrinks the bar with it
+  env.window.innerWidth = 1000
+  triggerObservers(dom)
+  const shrunk = barBoxOf(dom)
+  assert.ok(Math.abs(shrunk.width - Math.round((500 / 1280) * 1000)) <= 2, `expected the same share, got ${shrunk.width}`)
+})
+
+test('the dragged length is remembered, so the next window opens with the same share', () => {
+  // Given a window in which the reader shortened the bar
+  const storage = new Map()
+  const first = openMacBar({ innerWidth: 1280, storage })
+  addMacHeaderRow(first.dom, { width: 1280, corner: false })
+  triggerObservers(first.dom)
+  const start = barBoxOf(first.dom)
+  const grip = start.bar.querySelector('[data-dsh-url-router-grip]')
+  grip.fire('pointerdown', { button: 0, clientX: start.left + start.width, preventDefault() {} })
+  first.dom.document.fire('pointermove', { clientX: start.left + start.width - 300 })
+  first.dom.document.fire('pointerup', {})
+  const ratio = JSON.parse(storage.get('dsh-url-router-bar-width')).ratio
+  assert.ok(Math.abs(ratio - 400 / 1280) < 1e-9, `expected the share of the window, got ${ratio}`)
+  // When a fresh window opens on a wider screen
+  const second = openMacBar({ innerWidth: 1600, storage })
+  addMacHeaderRow(second.dom, { width: 1600, corner: false })
+  triggerObservers(second.dom)
+  // Then the bar opens at the share it was given, not at the design's width
+  const box = barBoxOf(second.dom)
+  assert.ok(Math.abs(box.width - Math.round(ratio * 1600)) <= 2, `expected the remembered share, got ${box.width}`)
+})
+
+test('a drag stops at the controls beside it and never goes below a usable width', () => {
+  // Given a header row whose right-hand corner holds the shell's own buttons
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280 })
+  triggerObservers(dom)
+  const bar = barBoxOf(dom).bar
+  const grip = bar.querySelector('[data-dsh-url-router-grip]')
+  // When the reader drags far past them
+  grip.fire('pointerdown', { button: 0, clientX: 1000, preventDefault() {} })
+  dom.document.fire('pointermove', { clientX: 5000 })
+  dom.document.fire('pointerup', {})
+  // Then the bar stops where the corner begins — a drag is not a way around the placement
+  const wide = barBoxOf(dom)
+  assert.ok(wide.left + wide.width <= 1130 - 8, `expected the bar clear of the corner, got ${wide.left + wide.width}`)
+  // And when the reader drags far to the left, a usable field is what is left
+  grip.fire('pointerdown', { button: 0, clientX: 1000, preventDefault() {} })
+  dom.document.fire('pointermove', { clientX: -5000 })
+  dom.document.fire('pointerup', {})
+  assert.equal(barBoxOf(dom).width, 120)
+})
+
+test('a double-click on the handle puts the design\'s own length back', () => {
+  // Given a window whose bar the reader had shortened
+  const storage = new Map()
+  const { dom } = openMacBar({ innerWidth: 1280, storage })
+  addMacHeaderRow(dom, { width: 1280, corner: false })
+  triggerObservers(dom)
+  const start = barBoxOf(dom)
+  const grip = start.bar.querySelector('[data-dsh-url-router-grip]')
+  grip.fire('pointerdown', { button: 0, clientX: start.left + start.width, preventDefault() {} })
+  dom.document.fire('pointermove', { clientX: start.left + start.width - 200 })
+  dom.document.fire('pointerup', {})
+  assert.equal(barBoxOf(dom).width, 500)
+  // When the reader double-clicks the handle
+  grip.fire('dblclick', {})
+  // Then the bar is the width the design asks for, and nothing is remembered any more
+  assert.equal(barBoxOf(dom).width, 700)
+  assert.equal(storage.has('dsh-url-router-bar-width'), false)
+})
+
 test('switching to a screen with no header row keeps the bar visible', () => {
   // Given the bar placed on a conversation screen
   const { dom } = openMacBar({ innerWidth: 1280 })

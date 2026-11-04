@@ -91,6 +91,14 @@ const show = label => {
     window.__harnessError ? `error: ${window.__harnessError}` : '',
     node ? `bar: top=${Math.round(rect.top)} left=${Math.round(rect.left)} w=${Math.round(rect.width)} display=${getComputedStyle(node).display} opacity=${getComputedStyle(node).opacity}` : 'bar: 不存在',
     `build: ${window.__dshUrlRouter?.build ?? '—'}`,
+    (() => {
+      // 握把：虚线一样的 2px 线只在悬停 / 拖动时出现，位置也必须和地址栏的右边缘对齐
+      const grip = node?.querySelector?.('[data-dsh-url-router-grip]')
+      if (!grip) return 'grip: none'
+      const r = grip.getBoundingClientRect()
+      const resizing = node.getAttribute('data-dsh-url-router-resizing') !== null
+      return `grip: x=${Math.round(r.left)}..${Math.round(r.right)} resizing=${resizing}`
+    })(),
     line ? `line: limit=${line.rightLimit} spans=${line.spans.map(s => `${s.left}-${s.right}(${s.from})`).join(',') || 'none'}` : 'line: —',
     line ? `runs: ${line.runs.map(r => `${r.left}-${r.right}`).join(',') || 'none'}` : '',
   ].filter(Boolean).join('\n')
@@ -120,6 +128,20 @@ setTimeout(() => {
     para.style.cssText = 'position:absolute;top:0;left:366px;width:823px;height:2000px;margin:0;color:#8b93a7'
     main.appendChild(para)
     settle('正文里有一个高到穿过那条线的段落')
+  } else if (CASE === 'drag') {
+    // 拖动右边缘改长度：演练台自己派发指针事件，真机上是真鼠标。故意不派 pointerup，
+    // 好让截图里同时看到拖到一半的长度和那条握把线。
+    // 无头浏览器里 CSS transition 在虚拟时间下不推进，算出来的永远是起始值；为了截到那条线，
+    // 这里先关掉过渡（真机上它只是一个 120ms 的渐显）。
+    const noTransition = document.createElement('style')
+    noTransition.textContent = '#dsh-url-router-titlebar [data-dsh-url-router-grip]::after{transition:none !important}'
+    document.head.appendChild(noTransition)
+    const grip = document.querySelector('[data-dsh-url-router-grip]')
+    const box = bar()?.getBoundingClientRect()
+    const startX = box ? box.right : 1200
+    grip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: startX }))
+    document.dispatchEvent(new PointerEvent('pointermove', { clientX: startX - 180 }))
+    settle('把长度往左拖了 180')
   } else if (CASE === 'panel') {
     // 切到没有头部行的界面（面板页）
     const main = document.querySelector('.main')
