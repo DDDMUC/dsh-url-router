@@ -4880,6 +4880,18 @@ test('a window that cannot be measured does not turn the bar into a sliver', () 
   assert.ok(after.width >= 120, `expected the bar to keep a real width, got ${after.width}`)
 })
 
+test('only the macOS bar carries resize handles', () => {
+  // Given a Windows window, where the bar fills the strip between the menu and the window buttons
+  const windows = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  // Then there is no length to drag, so there is no handle to find
+  assert.equal(windows.dom.body.querySelectorAll('[data-dsh-url-router-grip]').length, 0)
+  // And on a mac window both edges have one
+  const mac = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(mac.dom, { width: 1280, corner: false })
+  triggerObservers(mac.dom)
+  assert.equal(mac.dom.body.querySelectorAll('[data-dsh-url-router-grip]').length, 2)
+})
+
 test('dragging the handle sets the length, and the length keeps the window\'s share', () => {
   // Given a mac screen with room to the right of what the header row draws
   const { env, dom } = openMacBar({ innerWidth: 1280 })
