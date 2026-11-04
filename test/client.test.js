@@ -4888,7 +4888,7 @@ test('dragging the handle sets the length, and the length keeps the window\'s sh
   const before = barBoxOf(dom)
   assert.equal(before.width, 700, 'the design\'s own width, until the reader drags')
   // When the reader drags the right-hand edge two hundred pixels to the left
-  const grip = before.bar.querySelector('[data-dsh-url-router-grip]')
+  const grip = before.bar.querySelector('[data-dsh-url-router-grip="right"]')
   assert.notEqual(grip, null, 'the bar carries a handle')
   grip.fire('pointerdown', { button: 0, clientX: before.left + before.width, preventDefault() {} })
   dom.document.fire('pointermove', { clientX: before.left + before.width - 200 })
@@ -4910,7 +4910,7 @@ test('the dragged length is remembered, so the next window opens with the same s
   addMacHeaderRow(first.dom, { width: 1280, corner: false })
   triggerObservers(first.dom)
   const start = barBoxOf(first.dom)
-  const grip = start.bar.querySelector('[data-dsh-url-router-grip]')
+  const grip = start.bar.querySelector('[data-dsh-url-router-grip="right"]')
   grip.fire('pointerdown', { button: 0, clientX: start.left + start.width, preventDefault() {} })
   first.dom.document.fire('pointermove', { clientX: start.left + start.width - 300 })
   first.dom.document.fire('pointerup', {})
@@ -4931,7 +4931,7 @@ test('a drag stops at the controls beside it and never goes below a usable width
   addMacHeaderRow(dom, { width: 1280 })
   triggerObservers(dom)
   const bar = barBoxOf(dom).bar
-  const grip = bar.querySelector('[data-dsh-url-router-grip]')
+  const grip = bar.querySelector('[data-dsh-url-router-grip="right"]')
   // When the reader drags far past them
   grip.fire('pointerdown', { button: 0, clientX: 1000, preventDefault() {} })
   dom.document.fire('pointermove', { clientX: 5000 })
@@ -4946,6 +4946,67 @@ test('a drag stops at the controls beside it and never goes below a usable width
   assert.equal(barBoxOf(dom).width, 120)
 })
 
+test('dragging the left-hand edge keeps the right-hand edge where it is', () => {
+  // Given a bar whose left edge the placement chose
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280, corner: false })
+  triggerObservers(dom)
+  const before = barBoxOf(dom)
+  const right = before.left + before.width
+  const grip = before.bar.querySelector('[data-dsh-url-router-grip="left"]')
+  assert.notEqual(grip, null, 'the left edge is a handle too')
+  // When the reader drags that edge a hundred pixels to the right
+  grip.fire('pointerdown', { button: 0, clientX: before.left, preventDefault() {} })
+  dom.document.fire('pointermove', { clientX: before.left + 100 })
+  dom.document.fire('pointerup', {})
+  // Then the bar starts a hundred pixels later, ends where it always did, and is that much shorter
+  const after = barBoxOf(dom)
+  assert.equal(after.left, before.left + 100)
+  assert.equal(after.left + after.width, right)
+  assert.equal(after.width, before.width - 100)
+})
+
+test('a drag whose release happens outside the page does not leave the bar frozen', () => {
+  // Given a drag in flight
+  const { env, dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280, corner: false })
+  triggerObservers(dom)
+  const before = barBoxOf(dom)
+  const grip = before.bar.querySelector('[data-dsh-url-router-grip="right"]')
+  grip.fire('pointerdown', { button: 0, clientX: 1000, preventDefault() {} })
+  // When the button comes up somewhere this page never hears about (another app, the menu bar) and
+  // the pointer then moves with nothing held
+  dom.document.fire('pointermove', { clientX: 1000, buttons: 0 })
+  // Then the drag is over rather than being dragged forever by a phantom
+  assert.equal(before.bar.getAttribute('data-dsh-url-router-resizing'), null)
+  // And the placement is in charge again: the bar follows a resized window
+  env.window.innerWidth = 1000
+  triggerObservers(dom)
+  assert.ok(barBoxOf(dom).width < before.width, 'expected the bar to follow the window again')
+})
+
+test('a drag keeps the bar on screen even when the pointer leaves it', () => {
+  // Given the hover preference, where leaving the bar normally puts it away
+  const storage = storedSettings({ hoverReveal: true })
+  const { env, dom } = openMacBar({ innerWidth: 1280, storage })
+  addMacHeaderRow(dom, { width: 1280, corner: false })
+  triggerObservers(dom)
+  const bar = barBoxOf(dom).bar
+  const grip = bar.querySelector('[data-dsh-url-router-grip="right"]')
+  bar.fire('mouseenter', {})
+  // When a drag starts and the pointer runs off the bar (a fast drag outruns the edge)
+  grip.fire('pointerdown', { button: 0, clientX: 1000, preventDefault() {} })
+  bar.fire('mouseleave', {})
+  env.api.advance(400)
+  // Then the bar stays revealed: hiding it mid-drag is what ended the drag the reader started
+  assert.equal(bar.getAttribute('data-dsh-url-router-shown'), '')
+  // And once the drag is over, leaving puts it away exactly as before
+  dom.document.fire('pointerup', {})
+  bar.fire('mouseleave', {})
+  env.api.advance(400)
+  assert.equal(bar.getAttribute('data-dsh-url-router-shown'), null)
+})
+
 test('a double-click on the handle puts the design\'s own length back', () => {
   // Given a window whose bar the reader had shortened
   const storage = new Map()
@@ -4953,7 +5014,7 @@ test('a double-click on the handle puts the design\'s own length back', () => {
   addMacHeaderRow(dom, { width: 1280, corner: false })
   triggerObservers(dom)
   const start = barBoxOf(dom)
-  const grip = start.bar.querySelector('[data-dsh-url-router-grip]')
+  const grip = start.bar.querySelector('[data-dsh-url-router-grip="right"]')
   grip.fire('pointerdown', { button: 0, clientX: start.left + start.width, preventDefault() {} })
   dom.document.fire('pointermove', { clientX: start.left + start.width - 200 })
   dom.document.fire('pointerup', {})

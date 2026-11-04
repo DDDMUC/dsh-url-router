@@ -93,11 +93,14 @@ const show = label => {
     `build: ${window.__dshUrlRouter?.build ?? '—'}`,
     (() => {
       // 握把：虚线一样的 2px 线只在悬停 / 拖动时出现，位置也必须和地址栏的右边缘对齐
-      const grip = node?.querySelector?.('[data-dsh-url-router-grip]')
-      if (!grip) return 'grip: none'
-      const r = grip.getBoundingClientRect()
+      const grips = [...(node?.querySelectorAll?.('[data-dsh-url-router-grip]') ?? [])]
+      if (grips.length === 0) return 'grips: none'
+      const boxes = grips.map(grip => {
+        const r = grip.getBoundingClientRect()
+        return `${grip.getAttribute('data-dsh-url-router-grip')}=${Math.round(r.left)}..${Math.round(r.right)}`
+      })
       const resizing = node.getAttribute('data-dsh-url-router-resizing') !== null
-      return `grip: x=${Math.round(r.left)}..${Math.round(r.right)} resizing=${resizing}`
+      return `grips: ${boxes.join(' ')} resizing=${resizing}`
     })(),
     line ? `line: limit=${line.rightLimit} spans=${line.spans.map(s => `${s.left}-${s.right}(${s.from})`).join(',') || 'none'}` : 'line: —',
     line ? `runs: ${line.runs.map(r => `${r.left}-${r.right}`).join(',') || 'none'}` : '',
@@ -136,11 +139,12 @@ setTimeout(() => {
     const noTransition = document.createElement('style')
     noTransition.textContent = '#dsh-url-router-titlebar [data-dsh-url-router-grip]::after{transition:none !important}'
     document.head.appendChild(noTransition)
-    const grip = document.querySelector('[data-dsh-url-router-grip]')
+    const grip = document.querySelector('[data-dsh-url-router-grip="right"]')
     const box = bar()?.getBoundingClientRect()
     const startX = box ? box.right : 1200
-    grip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: startX }))
-    document.dispatchEvent(new PointerEvent('pointermove', { clientX: startX - 180 }))
+    // buttons: 1 —— 合成事件默认 buttons=0，插件会把它当成“键已经松开了”，拖动立刻结束。
+    grip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: startX, buttons: 1 }))
+    document.dispatchEvent(new PointerEvent('pointermove', { clientX: startX - 180, buttons: 1 }))
     settle('把长度往左拖了 180')
   } else if (CASE === 'panel') {
     // 切到没有头部行的界面（面板页）
