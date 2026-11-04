@@ -5178,3 +5178,22 @@ test('an open right-hand panel is a surface of its own: the bar stops at its lef
   assert.notEqual(box.display, 'none')
   assert.ok(box.left + box.width <= 720, `expected the bar to stop at the panel, got ${box.left + box.width}`)
 })
+
+test('the red border is taken back on its own, so one failure cannot leave the bar red forever', () => {
+  // Given a link that does not land
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  env.api.list('session-abc')
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const input = bar.querySelector('input')
+  input.value = '#/session/session-0000dead'
+  input.fire('keydown', { key: 'Enter' })
+  env.api.advance(1000)
+  env.api.advance(1000)
+  assert.equal(bar.getAttribute('data-dsh-url-router-state'), 'refused')
+  // When nothing else happens for a while
+  env.api.advance(8000)
+  // Then the bar goes back to naming the screen instead of staying red (reported: "it errored once
+  // and now it is red forever")
+  assert.equal(bar.getAttribute('data-dsh-url-router-state'), 'idle')
+  assert.doesNotMatch(input.value, /打不开/)
+})
