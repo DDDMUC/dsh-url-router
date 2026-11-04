@@ -4831,6 +4831,43 @@ test('the width is capped, so the bar cannot grow without bound', () => {
   assert.ok(box.left + box.width <= 1280, `expected the bar inside the window, got ${box.left + box.width}`)
 })
 
+test('a message scrolled under the header does not count as standing on the line', () => {
+  // Given a transcript that has scrolled up under the shell's header: a code block whose box
+  // crosses the header line while the header paints over it (clipped — invisible, not clickable)
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280 })
+  const code = dom.document.createElement('code')
+  code.getBoundingClientRect = () => ({ top: 0, left: 800, width: 200, height: 30 })
+  dom.body.appendChild(code)
+  // The header is the thing the pointer finds on that line (it is wider than one control, so the
+  // line measurement does not count the header itself as standing on the line)
+  const header = dom.document.createElement('div')
+  header.getBoundingClientRect = () => ({ top: 8, left: 0, width: 1280, height: 34 })
+  dom.body.appendChild(header)
+  dom.document.elementsFromPoint = x => (x >= 800 && x < 1000 ? [header] : [])
+  // When the screen settles
+  triggerObservers(dom)
+  // Then the bar keeps the whole free stretch instead of jumping to the sliver beside the phantom
+  const box = barBoxOf(dom)
+  assert.ok(box.width > 400, `expected the whole stretch, got ${box.width}`)
+  assert.ok(box.left + box.width <= 1130 - 8, `expected the bar clear of the corner, got ${box.left + box.width}`)
+})
+
+test('a box that really is on the line still keeps the bar off it', () => {
+  // Given the same box, but one that is genuinely the thing on the line
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  addMacHeaderRow(dom, { width: 1280 })
+  const code = dom.document.createElement('code')
+  code.getBoundingClientRect = () => ({ top: 0, left: 800, width: 200, height: 30 })
+  dom.body.appendChild(code)
+  dom.document.elementsFromPoint = x => (x >= 800 && x < 1000 ? [code] : [])
+  // When the screen settles
+  triggerObservers(dom)
+  // Then the bar stops before it, exactly as it did before hit-testing existed
+  const box = barBoxOf(dom)
+  assert.ok(box.left + box.width <= 800 - 8, `expected the bar clear of the box, got ${box.left + box.width}`)
+})
+
 test('the line measurement names what each occupied stretch came from', () => {
   // Given a mac screen with the shell's header corner on the right
   const { env, dom } = openMacBar({ innerWidth: 1280 })
@@ -5048,6 +5085,32 @@ test('a drag keeps the bar on screen even when the pointer leaves it', () => {
   bar.fire('mouseleave', {})
   env.api.advance(400)
   assert.equal(bar.getAttribute('data-dsh-url-router-shown'), null)
+})
+
+test('a press on a handle that never moves is not remembered', () => {
+  // Given a bar whose box the placement chose
+  const storage = new Map()
+  const { dom } = openMacBar({ innerWidth: 1280, storage })
+  addMacHeaderRow(dom, { width: 1280, corner: false })
+  triggerObservers(dom)
+  const before = barBoxOf(dom)
+  const grip = before.bar.querySelector('[data-dsh-url-router-grip="right"]')
+  // When a press lands on the handle and the pointer is let go without moving it
+  grip.fire('pointerdown', { button: 0, clientX: before.left + before.width, preventDefault() {} })
+  dom.document.fire('pointerup', {})
+  // Then nothing is remembered: a box the reader never chose would freeze whatever happened to be there
+  assert.equal(storage.has('dsh-url-router-bar-width'), false)
+})
+
+test('a box remembered by the first cut of the drag is not trusted', () => {
+  // Given a record written before the box was versioned — it could hold a box the placement had
+  // itself mis-placed, and replaying it kept the bar there
+  const storage = new Map([['dsh-url-router-bar-width', JSON.stringify({ ratio: 0.1, shift: -25 })]])
+  const { dom } = openMacBar({ innerWidth: 1280, storage })
+  addMacHeaderRow(dom, { width: 1280, corner: false })
+  triggerObservers(dom)
+  // Then the design's own width is what the bar takes
+  assert.equal(barBoxOf(dom).width, 700)
 })
 
 test('a double-click on the handle puts the design\'s own length back', () => {
