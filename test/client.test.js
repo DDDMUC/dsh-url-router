@@ -4880,16 +4880,47 @@ test('a window that cannot be measured does not turn the bar into a sliver', () 
   assert.ok(after.width >= 120, `expected the bar to keep a real width, got ${after.width}`)
 })
 
-test('only the macOS bar carries resize handles', () => {
-  // Given a Windows window, where the bar fills the strip between the menu and the window buttons
+test('the Windows bar has one handle and the mac bar two', () => {
+  // Given a Windows window, where the bar starts against the shell's menu
   const windows = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
-  // Then there is no length to drag, so there is no handle to find
-  assert.equal(windows.dom.body.querySelectorAll('[data-dsh-url-router-grip]').length, 0)
+  // Then only its right-hand edge is a handle: there is nothing before the menu to trade for
+  assert.equal(windows.dom.body.querySelectorAll('[data-dsh-url-router-grip]').length, 1)
+  assert.equal(windows.dom.body.querySelector('[data-dsh-url-router-grip="left"]'), null)
   // And on a mac window both edges have one
   const mac = openMacBar({ innerWidth: 1280 })
   addMacHeaderRow(mac.dom, { width: 1280, corner: false })
   triggerObservers(mac.dom)
   assert.equal(mac.dom.body.querySelectorAll('[data-dsh-url-router-grip]').length, 2)
+})
+
+test('dragging the Windows edge shortens the bar, and the strip keeps the share', () => {
+  // Given the Windows strip: the bar fills what the menu and the window buttons leave
+  const storage = new Map()
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  assert.equal(bar.style.width, 'auto')
+  const strip = 1440 - 198 - 163
+  const grip = bar.querySelector('[data-dsh-url-router-grip="right"]')
+  // When the reader drags that edge two hundred pixels to the left
+  grip.fire('pointerdown', { button: 0, clientX: 198 + strip, preventDefault() {} })
+  dom.document.fire('pointermove', { clientX: 198 + strip - 200 })
+  dom.document.fire('pointerup', {})
+  // Then the bar is shorter and no longer reaches the window buttons
+  assert.equal(Number.parseInt(bar.style.width, 10), strip - 200)
+  assert.equal(bar.style.right, 'auto')
+  // And the length is remembered as a share of the strip, so a wider window opens wider
+  const second = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage, innerWidth: 1840 })
+  const wider = second.dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const widerStrip = 1840 - 198 - 163
+  assert.ok(
+    Math.abs(Number.parseInt(wider.style.width, 10) - Math.round(((strip - 200) / strip) * widerStrip)) <= 2,
+    `expected the same share of the strip, got ${wider.style.width}`,
+  )
+  // And a double-click puts the strip's own length back
+  grip.fire('dblclick', {})
+  assert.equal(bar.style.width, 'auto')
+  assert.equal(bar.style.right, '163px')
+  assert.equal(storage.has('dsh-url-router-bar-width'), false)
 })
 
 test('dragging the handle sets the length, and the length keeps the window\'s share', () => {

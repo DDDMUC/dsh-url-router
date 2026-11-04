@@ -64,7 +64,7 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 DSH 桌面版（Windows）的标题栏是**画在网页里的**：preload 给 `<html>` 打上 `data-windows-titlebar`、给出 `--dsh-windows-titlebar-height`，菜单条本身是页面里的一个 shadow DOM 固定元素（`[data-windows-menu]`）。那条 strip 里的空白是**页面空间**，而桌面版**自己没有地址栏** —— 于是本插件把地址栏放在那儿：
 
 - 只在 `html[data-windows-titlebar]` 存在时出现 ✓（纯 Web 版什么都不画 ✓）。
-- 位置：紧跟 shell 自己的菜单条右侧 ✓、右端避开窗口按钮 ✓；高度取 `--dsh-windows-titlebar-height` ✓；`-webkit-app-region: no-drag` 保证能点 ✓。
+- 位置：紧跟 shell 自己的菜单条右侧 ✓、右端避开窗口按钮 ✓；默认撑满中间；**右边缘有握把** —— 拖它可以把地址栏改短（右边留白），长度按这条 strip 的比例记住，窗口缩放时等比；双击握把恢复撑满 ✓。高度取 `--dsh-windows-titlebar-height` ✓；`-webkit-app-region: no-drag` 保证能点 ✓。
 
 ### macOS 桌面的地址栏
 
