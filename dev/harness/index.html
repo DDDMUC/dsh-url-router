@@ -90,6 +90,13 @@ if (new URLSearchParams(location.search).get('platform') === 'windows') {
   document.body.appendChild(menu)
 }
 </script>
+<script>
+// 复现"记下的长度很短 + 值很长"：真机上那条 228px 的框
+if (new URLSearchParams(location.search).get('case') === 'narrow') {
+  localStorage.setItem('dsh-url-router-bar-width', JSON.stringify({ v: 2, ratio: Number(new URLSearchParams(location.search).get('ratio') || 0.18), shift: 0 }))
+  location.hash = '#/workspace/Default Project/session/session-dd544542-1559-47c1-863e-9f'
+}
+</script>
 <script src="../../lib/client.js"></script>
 <script>
 const report = document.getElementById('report')

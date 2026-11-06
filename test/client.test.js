@@ -4894,22 +4894,37 @@ test('a line with no free room paints the field instead of mixing two texts', ()
   assert.equal(box.bar.getAttribute('data-dsh-url-router-overlap'), '')
 })
 
-test('a crowded line keeps the bar in a free stretch instead of on the window controls', () => {
-  // Given a narrow window whose header leaves one stretch too small to be comfortable
+test('a wide control does not swallow the whole line', () => {
+  // Given the shell's right-hand cluster: one very wide control (it stretches with the line)
   const { dom } = openMacBar({ innerWidth: 1200 })
   const left = dom.document.createElement('button')
   left.getBoundingClientRect = () => ({ top: 8, left: 0, width: 300, height: 30 })
-  const right = dom.document.createElement('button')
-  right.getBoundingClientRect = () => ({ top: 8, left: 400, width: 780, height: 30 })
+  const cluster = dom.document.createElement('button')
+  cluster.getBoundingClientRect = () => ({ top: 8, left: 400, width: 780, height: 30 })
   dom.body.appendChild(left)
-  dom.body.appendChild(right)
+  dom.body.appendChild(cluster)
   triggerObservers(dom)
   const box = barBoxOf(dom)
-  // Then the bar is inside the one free stretch it has ...
+  // Then the bar keeps its normal length: counting that cluster as occupied would leave a
+  // one-finger-wide gap and the bar would shrink to it (reported 2026-11-07)
   assert.notEqual(box.display, 'none')
+  assert.ok(box.width > 300, `expected a usable bar, got ${box.width}`)
   assert.ok(box.left >= 300, `expected the bar after the first control, got ${box.left}`)
-  // ... rather than at the window's right end, where the shell's own buttons are
-  assert.ok(box.left + box.width <= 400, `expected the bar inside 300-400, got ${box.left}+${box.width}`)
+})
+
+test('the bar stops short of a control it would otherwise be drawn across', () => {
+  // Given a control under the place the measurement chose (boxes alone did not warn about it)
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  const cluster = dom.document.createElement('button')
+  cluster.getBoundingClientRect = () => ({ top: 8, left: 400, width: 780, height: 30 })
+  dom.body.appendChild(cluster)
+  dom.document.elementsFromPoint = x => (x >= 400 ? [cluster] : [])
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar ends before it instead of sitting on top of it
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left + box.width <= 400, `expected the bar before the cluster, got ${box.left}+${box.width}`)
+  assert.equal(box.bar.getAttribute('data-dsh-url-router-overlap'), null)
 })
 
 test('a plugin row reusing the titleRow class does not drag the bar down', () => {
