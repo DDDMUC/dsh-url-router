@@ -189,6 +189,25 @@ setTimeout(() => {
         }, 600)
       }, 700)
     }
+  } else if (CASE === 'scoped') {
+    // 作用域包：名字里带 `/`（@scope/name），链接必须是一段（%2F），不能拆成两段路径
+    const card = document.createElement('li')
+    card.setAttribute('data-plugin-package', '@deepseek-ai/dsh-experimental-agent-team-profile')
+    card.style.cssText = 'list-style:none;margin:12px 16px;padding:10px 12px;border:1px solid #e2e6f0;border-radius:10px'
+    card.textContent = '智能体团队'
+    document.querySelector('.main').appendChild(card)
+    setTimeout(() => {
+      const field = document.querySelector('#dsh-url-router-titlebar input')
+      field.focus()
+      field.value = '智能体'
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+      const anchor = card.querySelector('a[data-dsh-part="url-router-link"]')
+      const item = document.querySelector('[data-dsh-url-router-screen-item]')
+      setTimeout(() => {
+        report.textContent += `\nanchor=${anchor?.getAttribute('href') ?? 'none'}`
+        report.textContent += `\noffered=${item?.getAttribute('data-dsh-url-router-screen-item') ?? 'none'}`
+      }, 300)
+    }, 400)
   } else if (CASE === 'panel') {
     // 切到没有头部行的界面（面板页）
     const main = document.querySelector('.main')

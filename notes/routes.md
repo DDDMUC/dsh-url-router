@@ -12,6 +12,9 @@
 - **视图驱动必须排在工作区/会话分支之前** ✓，否则那两条会先 `return` 把它吞掉 ✓（历史 bug ✓）；且**不能被 `source === 'hash'` 挡住** ✓（粘贴视图链接就是要切过去 ✓）。
 - **工作区路线**：`#/workspace/<工作区名>/session/<会话id>`（侧栏形状 ✓）。工作区行是 `data-row-key="workspace:<uuid>"` ✓、**行文本就是工作区名** ✓（无 `data-workspace-*` ✗，实测 ✓）；会话所属工作区 = 树里**它之前最近的那个 workspace 行** ✓（`workspaceNameOf()` ✓，行锚点与反映共用 ✓）。名字是**装饰** ✓：`sameRoute` 对 workspace 路线只比**会话 id** ✓（名字过期也能落地 ✓）；读不到工作区行就退回 `#/session/<id>` ✓（不猜 ✓）。
 - **行锚点的 href 也要带工作区** ✓（右键"复制链接"直接给出带归属的链接 ✓）。
+- **段内部的"一个身份"先编码好再拼** ✓（2026-11-07 用户报「打不开 #/panel/plugins/%40deepseek-ai/dsh-experimental-agent-team-profile」✓）：`innerPath()` 把字符串按 `/` 拆段 ✓，所以**名字里带 `/` 的身份必须以数组传**（`routeHash('panel', 'plugins', [name])` ✓）—— 作用域包 `@scope/name` 就是这种 ✓，写成字符串会被拆成两段路径 ✓，解析回来变成 `<包>/<行>` ✓，于是去点一行不存在的行、8 秒后"打不开" ✓。**两处都要**：列表行锚点（`li[data-plugin-package]` ✓）和界面搜索给的链接 ✓。
+  ⇒ 反向也要容忍 ✓：`@scope/name` **恰好两段且首段以 `@` 开头** → 一定是作用域包（没有叫 `@scope` 的包 ✓），直接并回去 ✓，不必等页面渲染 ✓；三段以上才用"页面上真有一张这个包名的卡片"来判定 ✓。
+  ⇒ 页面自己上报的 `data-plugin-detail` / `data-plugin-item-detail` / `data-plugin-row-detail` 已经是**整名** ✓，canonical 用数组 ✓，所以"落地后地址栏写的"一直是规范形 ✓ —— 只有"从行反推链接"那两处踩过 ✓。
 - **作用域由视图决定，不靠猜**：主面板是应用级界面（列的是本机插件，不是某个对话），所以它的链接**不带**会话 id；只有会话级视图才写会话。
 - **`data-dsh-surface` 从来不是官方标记** ✓（2026-10-24 实测订正，**上一轮"官方把设置标记改名了"的结论作废** ✗）：官方设置浮层根元素是 `role="dialog" aria-modal="true" data-shortcut-modal="settings"` ✓（`dsh-client-ui-settings-general/lib/client.js`，`dsh-client-ui-shortcuts` 与 `dsh-web-frontend/dist` 同名 ✓），里面 `<nav>` 的按钮仍是 `aria-current="true"` ✓。那个老名字是**第三方「皮肤中心」`@linxin666/dsh-client-ui-skin-center` 用 compat 适配器给官方 DOM 补打的** ✓（它自己的契约文档 `contracts/semantic-attrs-v1.md` 写明了 owner 是 skin-center、"非永久公共契约"、上游主题缝落地后进入删除评估 ✓）。
   ⇒ 症状按 profile 分裂，**不是"两边一样"** ✓：装了皮肤中心的 web profile 里地址栏一直正常反映设置 ✓（我 3080 实测：开浮层 → `#/settings/账号与余额` ✓，两个标记同时在场 ✓）；桌面 home 没装它 ✗ → 只有那边"地址栏不反映设置"。**粘 `#/settings` 开不出来**同理 ✓（驱动也读同一个标记）。

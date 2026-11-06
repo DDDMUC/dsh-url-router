@@ -1026,6 +1026,63 @@ test('a detail link opens that page through the panel\'s own control', () => {
   assert.ok(row.querySelector('[data-dsh-part="url-router-link"]') !== null, 'the list row is a link as well')
 })
 
+const SCOPED = '@deepseek-ai/dsh-experimental-agent-team-profile'
+const SCOPED_LINK = '#/panel/plugins/%40deepseek-ai%2Fdsh-experimental-agent-team-profile'
+
+test('a scoped package name is one segment in its link, not a path', () => {
+  // Given a plugins page listing a scoped package (`@scope/name` — the name itself has a slash)
+  const dom = fakeDom([])
+  const { row } = addPluginRow(dom, SCOPED)
+  const env = environment({ panels: ['plugins'], activePanelId: 'plugins' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  // When the plugin applies
+  open(env)
+  triggerObservers(dom)
+  // Then the row's link encodes the whole name as one segment, exactly like the page names itself
+  const link = row.querySelector('[data-dsh-part="url-router-link"]')
+  assert.notEqual(link, null)
+  assert.equal(link.getAttribute('href'), SCOPED_LINK)
+})
+
+test('the encoded link opens the scoped package page', () => {
+  // Given a link written the canonical way
+  const dom = fakeDom([])
+  const { button } = addPluginRow(dom, SCOPED)
+  const env = environment({ hash: SCOPED_LINK, panels: ['plugins'], rowLabels: [] })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  let clicks = 0
+  const original = button.click
+  button.click = () => { clicks += 1; original() }
+  // When the plugin applies
+  open(env)
+  // Then the card's own control was used, and the page keeps the canonical link
+  assert.equal(clicks, 1)
+  triggerObservers(dom)
+  assert.equal(env.location.hash, SCOPED_LINK)
+  assert.deepEqual(env.warnings, [])
+})
+
+test('a scoped name spelled with a raw slash still opens the page', () => {
+  // Given the link shape a hand-typed or older link carries: `@scope` and `name` as two segments
+  const dom = fakeDom([])
+  const { button } = addPluginRow(dom, SCOPED)
+  const env = environment({ hash: '#/panel/plugins/%40deepseek-ai/dsh-experimental-agent-team-profile', panels: ['plugins'], rowLabels: [] })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  let clicks = 0
+  const original = button.click
+  button.click = () => { clicks += 1; original() }
+  // When the plugin applies
+  open(env)
+  // Then the package that is really on the page wins over the shape of the path
+  assert.equal(clicks, 1)
+})
+
 test('a plugin list row is a real link to its detail page', () => {
   // Given the plugins panel listing one plugin
   const dom = fakeDom([])
@@ -2890,6 +2947,23 @@ test('the screen and the memory are two labelled groups', () => {
   assert.deepEqual(headings, ['界面上的字', '用过的界面'])
   assert.equal(list.querySelectorAll('[data-dsh-url-router-screen-item]').length, 1)
   assert.equal(list.querySelectorAll('[data-dsh-url-router-recent-item]').length, 1)
+})
+
+test('a scoped package card on screen is offered with its one-segment link', () => {
+  // Given the plugins page showing a scoped package card
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  const card = dom.document.createElement('li')
+  card.setAttribute('data-plugin-package', '@deepseek-ai/dsh-experimental-agent-team-profile')
+  card.textContent = '智能体团队'
+  dom.body.appendChild(card)
+  const { input, list } = barOf(dom)
+  // When part of its title is typed
+  input.value = '智能体'
+  input.fire('input', {})
+  // Then the offered link is the canonical one — one segment, the slash encoded
+  const item = list.querySelector('[data-dsh-url-router-screen-item]')
+  assert.notEqual(item, null)
+  assert.equal(item.getAttribute('data-dsh-url-router-screen-item'), SCOPED_LINK)
 })
 
 test('a plugin card on screen is offered by its own name', () => {
