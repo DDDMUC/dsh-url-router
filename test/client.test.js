@@ -4741,6 +4741,46 @@ test('the bar takes the shell corner line and stays off the title', () => {
   assert.ok(box.left >= 485, `expected the bar after the title, got ${box.left}`)
 })
 
+test('a header drawn after the placement moves the bar off its title', () => {
+  // Given a window where the bar was placed on a line that looked empty
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  const row = dom.document.createElement('div')
+  row.getBoundingClientRect = () => ({ top: 8, left: 0, width: 1280, height: 34 })
+  dom.body.appendChild(row)
+  triggerObservers(dom)
+  const before = barBoxOf(dom)
+  // When the screen then draws its own title under it (same viewport, same body shape: exactly
+  // the case the placement cache used to trust)
+  const title = dom.document.createElement('span')
+  title.ownText = '工具调用是否单次请求'
+  title.getBoundingClientRect = () => ({ top: 12, left: 300, width: 180, height: 28 })
+  row.appendChild(title)
+  dom.document.elementsFromPoint = x => (x >= 300 && x < 480 ? [title] : [row])
+  triggerObservers(dom)
+  // Then the bar steps past that title instead of drawing the address across it
+  const after = barBoxOf(dom)
+  assert.ok(after.left >= 488, `expected the bar after the title, got ${after.left}`)
+  assert.notEqual(after.left, before.left)
+  assert.equal(after.bar.getAttribute('data-dsh-url-router-overlap'), null)
+})
+
+test('a line with no free room paints the field instead of mixing two texts', () => {
+  // Given a line whose only content is a word, with no measurable box to warn about it
+  const { dom } = openMacBar({ innerWidth: 800 })
+  const word = dom.document.createElement('span')
+  word.ownText = '工具调用是否单次请求'
+  word.getBoundingClientRect = () => ({ top: 12, left: 120, width: 520, height: 0 })
+  dom.body.appendChild(word)
+  dom.document.elementsFromPoint = () => [word]
+  // When the bar is placed
+  triggerObservers(dom)
+  // Then it cannot get away from it, so it fills itself in: an opaque field is readable, two
+  // texts on top of each other are not
+  const box = barBoxOf(dom)
+  assert.notEqual(box.display, 'none')
+  assert.equal(box.bar.getAttribute('data-dsh-url-router-overlap'), '')
+})
+
 test('a plugin row reusing the titleRow class does not drag the bar down', () => {
   // Given a page whose own rows carry the same class the shell's header does, far below it
   const { dom } = openMacBar({ innerWidth: 1200 })

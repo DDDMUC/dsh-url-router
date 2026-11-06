@@ -124,9 +124,27 @@ window.__harnessShow = show
 const CASE = new URLSearchParams(location.search).get('case') || 'initial'
 const setWidth = value => Object.defineProperty(window, 'innerWidth', { configurable: true, get: () => value })
 const settle = label => setTimeout(() => show(label), 300)
+// 调试：某个点下面到底是谁（用来查"框盖住了正文/标题"这一类）
+const debugHits = (x, y) => {
+  const own = node => {
+    let text = ''
+    for (const child of (node.childNodes ?? [])) if (child.nodeType === 3) text += child.textContent
+    return text.trim()
+  }
+  return document.elementsFromPoint(x, y)
+    .map(node => `${node.tagName}.${String(node.className || '').slice(0, 24)}|own=${own(node).slice(0, 16)}`)
+    .join(' / ')
+}
 
 setTimeout(() => {
   show('初始')
+  if (CASE === 'hits') {
+    setTimeout(() => {
+      report.textContent += `\nhits@600,24=${debugHits(600, 24)}`
+      report.textContent += `\nhits@520,24=${debugHits(520, 24)}`
+      report.textContent += `\nattr=${document.querySelector('#dsh-url-router-titlebar')?.getAttribute('data-dsh-url-router-overlap')}`
+    }, 600)
+  }
   if (CASE === 'resize') {
     setWidth(900)
     window.dispatchEvent(new Event('resize'))
