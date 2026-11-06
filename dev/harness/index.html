@@ -159,6 +159,36 @@ setTimeout(() => {
     grip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: startX, buttons: 1 }))
     document.dispatchEvent(new PointerEvent('pointermove', { clientX: startX - 180, buttons: 1 }))
     settle('把长度往左拖了 180')
+  } else if (CASE === 'search' || CASE === 'search-click') {
+    // 界面上的字：侧栏一行会话 + 插件页一张卡，然后在地址栏里敲「智能体」
+    const sidebar = document.querySelector('.sidebar')
+    const row = document.createElement('div')
+    row.setAttribute('data-row-key', 'session:session-abc')
+    row.style.cssText = 'padding:6px 8px;border-radius:6px;margin-top:8px;background:#fff'
+    row.textContent = '鱼塘'
+    sidebar.appendChild(row)
+    const card = document.createElement('li')
+    card.setAttribute('data-plugin-package', 'dsh-agent-team')
+    card.style.cssText = 'list-style:none;margin:12px 16px;padding:10px 12px;border:1px solid #e2e6f0;border-radius:10px'
+    card.textContent = '智能体团队　让与你的对话的智能体把工作分给有名字的队友'
+    document.querySelector('.main').appendChild(card)
+    const field = document.querySelector('#dsh-url-router-titlebar input')
+    field.focus()
+    field.value = '智能体'
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+    settle('输入「智能体」')
+    if (CASE === 'search-click') {
+      // 点这一行：应当把它自己的链接打开（hash 变过去）
+      setTimeout(() => {
+        const item = document.querySelector('[data-dsh-url-router-screen-item]')
+        item?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        setTimeout(() => {
+          // file:// 下 replaceState 会被浏览器拒绝，所以看框里的值，而不是 location.hash
+          const shownInBox = document.querySelector('#dsh-url-router-titlebar input')?.value
+          report.textContent += `\nclicked → box=${shownInBox}`
+        }, 600)
+      }, 700)
+    }
   } else if (CASE === 'panel') {
     // 切到没有头部行的界面（面板页）
     const main = document.querySelector('.main')

@@ -2830,6 +2830,98 @@ test('a focused bar stays visible after the pointer leaves', () => {
   assert.equal(bar.getAttribute('data-dsh-url-router-shown'), '')
 })
 
+test('typing a word that is on screen offers a link to that thing', () => {
+  // Given a window whose sidebar shows a conversation titled 鱼塘
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  dom.rows[0].textContent = '鱼塘'
+  const { input, list } = barOf(dom)
+  // When the reader types part of that word
+  input.value = '鱼塘'
+  input.fire('input', {})
+  // Then the drop-down offers the word itself, linked to the conversation it names
+  const items = [...list.querySelectorAll('[data-dsh-url-router-screen-item]')]
+  assert.equal(items.length, 1)
+  assert.equal(items[0].getAttribute('data-dsh-url-router-screen-item'), '#/session/session-abc')
+  assert.equal(items[0].children.find(child => child.className === 'dshur-title').textContent, '鱼塘')
+})
+
+test('a word that stands for nothing routable is not offered', () => {
+  // Given a page with ordinary text and nothing routable behind it
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  const paragraph = dom.document.createElement('p')
+  paragraph.textContent = '这里只是正文，没有任何东西可以变成链接'
+  dom.body.appendChild(paragraph)
+  const { input, list } = barOf(dom)
+  // When that text is typed
+  input.value = '正文'
+  input.fire('input', {})
+  // Then nothing is offered: a made-up link would be a lie
+  assert.equal(list.querySelectorAll('[data-dsh-url-router-screen-item]').length, 0)
+  assert.equal(list.getAttribute('data-open'), null)
+})
+
+test('an offered word is clicked into its own link', () => {
+  // Given a conversation row on screen
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  dom.rows[0].textContent = '鱼塘'
+  env.api.list('session-abc')
+  const { input, list } = barOf(dom)
+  input.value = '鱼塘'
+  input.fire('input', {})
+  // When the offered row is clicked
+  list.querySelector('[data-dsh-url-router-screen-item]').fire('click', {})
+  // Then the bar opened that link, exactly as a remembered link does
+  assert.equal(env.location.hash, '#/session/session-abc')
+  assert.equal(list.getAttribute('data-open'), null)
+})
+
+test('the screen and the memory are two labelled groups', () => {
+  // Given one remembered screen and one word on screen
+  const storage = new Map([['dsh-url-router-recent', JSON.stringify([
+    { hash: '#/session/session-def', source: 'visit', at: 1 },
+  ])]])
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  dom.rows[0].textContent = 'session 鱼塘'
+  const { input, list } = barOf(dom)
+  input.value = 'session'
+  input.fire('input', {})
+  // Then both are offered, under headings that say where each came from
+  const headings = list.children.filter(node => node.className === 'dshur-group').map(node => node.textContent)
+  assert.deepEqual(headings, ['界面上的字', '用过的界面'])
+  assert.equal(list.querySelectorAll('[data-dsh-url-router-screen-item]').length, 1)
+  assert.equal(list.querySelectorAll('[data-dsh-url-router-recent-item]').length, 1)
+})
+
+test('a plugin card on screen is offered by its own name', () => {
+  // Given the plugins page showing a card the reader can open
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  const card = dom.document.createElement('li')
+  card.setAttribute('data-plugin-package', 'dsh-agent-team')
+  card.textContent = '智能体团队 让与你的对话的智能体把工作分给有名字的队友'
+  dom.body.appendChild(card)
+  const { input, list } = barOf(dom)
+  // When part of the card's title is typed
+  input.value = '智能体'
+  input.fire('input', {})
+  // Then the card is offered as the page that opens it
+  const item = list.querySelector('[data-dsh-url-router-screen-item]')
+  assert.notEqual(item, null)
+  assert.equal(item.getAttribute('data-dsh-url-router-screen-item'), '#/panel/plugins/dsh-agent-team')
+})
+
+test('typing nothing keeps the screen out of the drop-down', () => {
+  // Given a screen full of words
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  dom.rows[0].textContent = '鱼塘'
+  const { input, list } = barOf(dom)
+  // When the bar is only focused, with nothing typed
+  input.value = ''
+  input.fire('focus', {})
+  // Then the list is the memory alone: the screen is searched only for a query
+  assert.equal(list.querySelectorAll('[data-dsh-url-router-screen-item]').length, 0)
+  assert.equal(list.children.filter(node => node.className === 'dshur-group').length, 0)
+})
+
 test('the first click on the address bar selects the whole link', () => {
   // Given a desktop window whose bar is not focused and already names a screen
   const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
