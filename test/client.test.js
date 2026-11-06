@@ -2986,6 +2986,46 @@ test('a plugin card on screen is offered by its own name', () => {
   assert.equal(item.children.find(child => child.className === 'dshur-title').textContent, '智能体团队')
 })
 
+test('a card is offered under its name, not under the sentence that matched', () => {
+  // Given a card whose title says nothing the reader typed, while its description does
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  const card = dom.document.createElement('li')
+  card.setAttribute('data-plugin-package', 'dsh-preset-workbench')
+  const title = dom.document.createElement('h3')
+  title.textContent = '预设工作台'
+  const description = dom.document.createElement('p')
+  description.textContent = '在设置页自己创建/编辑 agent 预设提示词（分段+可见性开关+打开目录）'
+  card.appendChild(title)
+  card.appendChild(description)
+  dom.body.appendChild(card)
+  const { input, list } = barOf(dom)
+  // When the reader types a word from the description
+  input.value = '提示词'
+  input.fire('input', {})
+  // Then the row is named by the card's title, which is what the card is called
+  const item = list.querySelector('[data-dsh-url-router-screen-item]')
+  assert.notEqual(item, null)
+  assert.equal(item.children.find(child => child.className === 'dshur-title').textContent, '预设工作台')
+})
+
+test('every drop-down row is drawn as one line', () => {
+  // Given a remembered link and a screen word
+  const storage = new Map([['dsh-url-router-recent', JSON.stringify([
+    { hash: '#/session/session-def', source: 'visit', at: 1 },
+  ])]])
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  dom.rows[0].textContent = 'session 鱼塘'
+  const { input, list } = barOf(dom)
+  input.value = 'session'
+  input.fire('input', {})
+  // Then both kinds of row carry the one row class the stylesheet draws as a flex line — a
+  // screen result without it wrapped its label and pushed the link onto a second line
+  const rows = [...list.querySelectorAll('[data-dsh-url-router-screen-item]'),
+    ...list.querySelectorAll('[data-dsh-url-router-recent-item]')]
+  assert.equal(rows.length, 2)
+  assert.deepEqual(rows.map(row => row.className), ['dshur-item', 'dshur-item'])
+})
+
 test('typing nothing keeps the screen out of the drop-down', () => {
   // Given a screen full of words
   const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
