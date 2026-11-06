@@ -2907,6 +2907,9 @@ test('a plugin card on screen is offered by its own name', () => {
   const item = list.querySelector('[data-dsh-url-router-screen-item]')
   assert.notEqual(item, null)
   assert.equal(item.getAttribute('data-dsh-url-router-screen-item'), '#/panel/plugins/dsh-agent-team')
+  // The card is one run of text, so the label stops at the break after the word instead of
+  // dragging the whole description into the row
+  assert.equal(item.children.find(child => child.className === 'dshur-title').textContent, '智能体团队')
 })
 
 test('typing nothing keeps the screen out of the drop-down', () => {
