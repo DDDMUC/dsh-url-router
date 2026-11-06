@@ -248,28 +248,34 @@ setTimeout(() => {
       settle('输入「提示词」')
     }, 400)
   } else if (CASE === 'messages') {
-    // 会话里的轮次：地址栏里敲一句自己说过的话，应当给出「第 N 轮」的链接
-    const list = document.createElement('div')
-    list.style.cssText = 'margin:16px 24px;display:flex;flex-direction:column;gap:10px'
-    const say = (turn, who, text) => {
+    // 一长段会话：每一轮由好几块组成（用户那句、回答、工具），块块都带轮号；
+    // 最后那一轮里才有读者要的「能识别用户输入吗？」
+    const scroll = document.createElement('div')
+    scroll.setAttribute('data-conversation-scroll', '')
+    scroll.style.cssText = 'margin:16px 24px;display:flex;flex-direction:column;gap:8px'
+    const piece = (turn, who, text) => {
       const row = document.createElement('div')
       row.setAttribute('data-chat-turn', String(turn))
-      row.style.cssText = `padding:8px 10px;border-radius:8px;font-size:13px;max-width:70%;${who === 'me' ? 'align-self:flex-end;background:#e8effd' : 'background:#f4f5f8'}`
+      row.style.cssText = `padding:6px 10px;border-radius:8px;font-size:13px;max-width:70%;${who === 'me' ? 'align-self:flex-end;background:#e8effd' : 'background:#f4f5f8'}`
       row.textContent = text
-      list.appendChild(row)
+      scroll.appendChild(row)
     }
-    say(3, 'me', '用户输入可以吗？')
-    say(4, 'ai', '可以，用户发出的消息能识别；聊天输入框里的草稿不行。')
-    say(5, 'me', '没识别啊')
-    document.querySelector('.main').appendChild(list)
+    for (let turn = 1; turn < 27; turn += 1) {
+      piece(turn, 'me', `第 ${turn} 轮的问题：这一段在讨论地址栏的放置、搜索和拖动。`)
+      piece(turn, 'ai', `第 ${turn} 轮的回答：已经改好，并且测试全绿。`)
+    }
+    piece(27, 'ai', '现在不能，因为界面搜索只认"能变成链接的行"，而用户输入的两处都不是。')
+    piece(27, 'me', '能识别用户输入吗？')
+    piece(27, 'ai', '可以，用户发出的消息能识别；聊天输入框里的草稿不行。')
+    document.querySelector('.main').appendChild(scroll)
     // 轮次链接的形状取自当前地址栏：先给它一个会话形状
     location.hash = '#/session/session-harness'
     setTimeout(() => {
       const field = document.querySelector('#dsh-url-router-titlebar input')
       field.focus()
-      field.value = '用户输入可以吗'
+      field.value = '用户输入'
       field.dispatchEvent(new Event('input', { bubbles: true }))
-      settle('输入「用户输入可以吗」')
+      settle('输入「用户输入」')
     }, 400)
   } else if (CASE === 'panel') {
     // 切到没有头部行的界面（面板页）

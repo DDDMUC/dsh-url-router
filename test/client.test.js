@@ -3114,6 +3114,31 @@ test('a turn is offered once, however many elements carry its number', () => {
   assert.ok(label.includes('可以吗'), `expected the whole turn's words, got ${label}`)
 })
 
+test('the newest line is found even when the turn also holds older pieces', () => {
+  // Given a turn drawn as two pieces, where the word is only in the second (the reader's line)
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  const turn = dom.document.createElement('div')
+  turn.setAttribute('data-chat-turn', '27')
+  const answer = dom.document.createElement('p')
+  answer.setAttribute('data-chat-turn', '27')
+  answer.textContent = '现在不能，因为界面搜索只认能变成链接的行。'
+  const question = dom.document.createElement('p')
+  question.setAttribute('data-chat-turn', '27')
+  question.textContent = '能识别用户输入吗？'
+  turn.appendChild(answer)
+  turn.appendChild(question)
+  dom.body.appendChild(turn)
+  const { input, list } = barOf(dom)
+  // When the reader types what they wrote in that line
+  input.value = '能识别用户输入'
+  input.fire('input', {})
+  // Then that turn is offered, even though the first piece of it says something else
+  const item = list.querySelector('[data-dsh-url-router-message-item]')
+  assert.notEqual(item, null)
+  assert.equal(item.getAttribute('data-dsh-url-router-message-item'), '#/session/session-abc/turn/27')
+  assert.ok(item.children.find(child => child.className === 'dshur-kind').textContent.includes('27'))
+})
+
 test('typing nothing keeps the screen out of the drop-down', () => {
   // Given a screen full of words
   const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
