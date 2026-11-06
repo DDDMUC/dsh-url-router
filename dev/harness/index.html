@@ -177,6 +177,20 @@ setTimeout(() => {
     grip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: startX, buttons: 1 }))
     document.dispatchEvent(new PointerEvent('pointermove', { clientX: startX - 180, buttons: 1 }))
     settle('把长度往左拖了 180')
+  } else if (CASE === 'crowded') {
+    // 窄窗口 + 头部右侧一整簇按钮（真机那样：勾选框、几个图标、电源）
+    const header = document.querySelector('.headerRow')
+    const cluster = document.createElement('div')
+    cluster.setAttribute('role', 'button')
+    cluster.style.cssText = 'position:absolute;right:0;top:0;height:30px;width:300px;display:flex;gap:8px;align-items:center;justify-content:flex-end'
+    for (let i = 0; i < 4; i += 1) {
+      const button = document.createElement('button')
+      button.textContent = ''
+      button.style.cssText = 'width:26px;height:26px;border-radius:6px;border:1px solid #d6dbe6;background:#fff'
+      cluster.appendChild(button)
+    }
+    header.appendChild(cluster)
+    settle('窄窗口 + 右侧按钮簇')
   } else if (CASE === 'search' || CASE === 'search-click') {
     // 界面上的字：侧栏一行会话 + 插件页一张卡，然后在地址栏里敲「智能体」
     const sidebar = document.querySelector('.sidebar')

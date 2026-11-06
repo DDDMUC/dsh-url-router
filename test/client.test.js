@@ -4894,6 +4894,24 @@ test('a line with no free room paints the field instead of mixing two texts', ()
   assert.equal(box.bar.getAttribute('data-dsh-url-router-overlap'), '')
 })
 
+test('a crowded line keeps the bar in a free stretch instead of on the window controls', () => {
+  // Given a narrow window whose header leaves one stretch too small to be comfortable
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  const left = dom.document.createElement('button')
+  left.getBoundingClientRect = () => ({ top: 8, left: 0, width: 300, height: 30 })
+  const right = dom.document.createElement('button')
+  right.getBoundingClientRect = () => ({ top: 8, left: 400, width: 780, height: 30 })
+  dom.body.appendChild(left)
+  dom.body.appendChild(right)
+  triggerObservers(dom)
+  const box = barBoxOf(dom)
+  // Then the bar is inside the one free stretch it has ...
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 300, `expected the bar after the first control, got ${box.left}`)
+  // ... rather than at the window's right end, where the shell's own buttons are
+  assert.ok(box.left + box.width <= 400, `expected the bar inside 300-400, got ${box.left}+${box.width}`)
+})
+
 test('a plugin row reusing the titleRow class does not drag the bar down', () => {
   // Given a page whose own rows carry the same class the shell's header does, far below it
   const { dom } = openMacBar({ innerWidth: 1200 })
