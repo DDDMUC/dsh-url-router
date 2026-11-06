@@ -3026,6 +3026,94 @@ test('every drop-down row is drawn as one line', () => {
   assert.deepEqual(rows.map(row => row.className), ['dshur-item', 'dshur-item'])
 })
 
+test('a turn of the conversation is offered by what it says', () => {
+  // Given a conversation on screen with two turns
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  const first = dom.document.createElement('div')
+  first.setAttribute('data-chat-turn', '3')
+  first.textContent = '用户输入可以吗？'
+  const second = dom.document.createElement('div')
+  second.setAttribute('data-chat-turn', '4')
+  second.textContent = '可以，用户发出的消息能识别'
+  dom.body.appendChild(first)
+  dom.body.appendChild(second)
+  const { input, list } = barOf(dom)
+  // When the reader types a phrase they remember from one of them
+  input.value = '用户输入可以吗'
+  input.fire('input', {})
+  // Then that turn is offered, under its own heading
+  const headings = list.children.filter(node => node.className === 'dshur-group').map(node => node.textContent)
+  assert.ok(headings.includes('消息'), `expected the 消息 group, got ${JSON.stringify(headings)}`)
+  const items = [...list.querySelectorAll('[data-dsh-url-router-message-item]')]
+  assert.equal(items.length, 1)
+  assert.equal(items[0].getAttribute('data-dsh-url-router-message-item'), '#/session/session-abc/turn/3')
+  // ... named by a window of its text around the word
+  const label = items[0].children.find(child => child.className === 'dshur-title').textContent
+  assert.ok(label.includes('用户输入可以吗'), `expected the matched words in the label, got ${label}`)
+})
+
+test('the turn that is offered is opened by clicking it', () => {
+  // Given a turn offered by its text
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  const turn = dom.document.createElement('div')
+  turn.setAttribute('data-chat-turn', '3')
+  turn.textContent = '用户输入可以吗？'
+  dom.body.appendChild(turn)
+  const { input, list } = barOf(dom)
+  input.value = '用户输入'
+  input.fire('input', {})
+  // When it is clicked
+  list.querySelector('[data-dsh-url-router-message-item]').fire('click', {})
+  // Then the bar opened that position in the conversation
+  assert.equal(env.location.hash, '#/session/session-abc/turn/3')
+})
+
+test('a turn link keeps the shape the address bar already has', () => {
+  // Given a sidebar tree that puts this conversation inside a named workspace
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  addWorkspaceTree(dom, 'Default Project', ['session-abc'])
+  const env = environment({ hash: '#/workspace/Default%20Project/session/session-abc', protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const turn = dom.document.createElement('div')
+  turn.setAttribute('data-chat-turn', '7')
+  turn.textContent = '这一轮说了鱼塘'
+  dom.body.appendChild(turn)
+  const { input, list } = barOf(dom)
+  input.value = '鱼塘'
+  input.fire('input', {})
+  // Then the offered turn stays inside that workspace, instead of jumping to a bare session link
+  const item = list.querySelector('[data-dsh-url-router-message-item]')
+  assert.equal(item.getAttribute('data-dsh-url-router-message-item'), '#/workspace/Default%20Project/session/session-abc/turn/7')
+  item.fire('click', {})
+  assert.equal(env.location.hash, '#/workspace/Default%20Project/session/session-abc/turn/7')
+})
+
+test('a turn is offered once, however many elements carry its number', () => {
+  // Given one turn whose number is repeated on the pieces it is built from
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  const outer = dom.document.createElement('div')
+  outer.setAttribute('data-chat-turn', '3')
+  outer.textContent = '用户输入可以吗？'
+  const inner = dom.document.createElement('div')
+  inner.setAttribute('data-chat-turn', '3')
+  inner.textContent = '用户输入'
+  outer.appendChild(inner)
+  dom.body.appendChild(outer)
+  const { input, list } = barOf(dom)
+  // When the phrase is typed
+  input.value = '用户输入'
+  input.fire('input', {})
+  // Then the turn appears once, named by the widest of its pieces
+  const items = [...list.querySelectorAll('[data-dsh-url-router-message-item]')]
+  assert.equal(items.length, 1)
+  const label = items[0].children.find(child => child.className === 'dshur-title').textContent
+  assert.ok(label.includes('可以吗'), `expected the whole turn's words, got ${label}`)
+})
+
 test('typing nothing keeps the screen out of the drop-down', () => {
   // Given a screen full of words
   const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
