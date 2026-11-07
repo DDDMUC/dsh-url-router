@@ -3345,6 +3345,41 @@ test('one navigation that writes twice is one visit', () => {
   assert.deepEqual(stored.map(entry => entry.hash), ['#/session/session-def'])
 })
 
+test('A B C D, back to A, then B: what the bar says and what the list offers', () => {
+  // Given four screens were visited, one after another
+  const storage = new Map()
+  const { env, dom } = openWithTitlebar(
+    ['session:a', 'session:b', 'session:c', 'session:d'],
+    { menuWidth: 120, storage },
+  )
+  const { input, list } = barOf(dom)
+  env.api.list('a', 'b', 'c', 'd')
+  for (const id of ['a', 'b', 'c', 'd']) {
+    env.api.view(id)
+    env.api.advance(200)
+  }
+  const hashes = () => JSON.parse(storage.get('dsh-url-router-recent')).map(entry => entry.hash)
+  assert.deepEqual(hashes(), ['#/session/d', '#/session/c', '#/session/b', '#/session/a'])
+  // When the reader goes back to A ...
+  env.api.view('a')
+  env.api.advance(200)
+  // Then A is remembered again and moves to the front instead of being added twice
+  assert.deepEqual(hashes(), ['#/session/a', '#/session/d', '#/session/c', '#/session/b'])
+  // When the reader then opens B
+  env.api.view('b')
+  env.api.advance(200)
+  // Then the address bar names B ...
+  assert.equal(env.location.hash, '#/session/b')
+  // ... the memory keeps B at the front, and the list shows everything but the screen in front
+  assert.deepEqual(hashes(), ['#/session/b', '#/session/a', '#/session/d', '#/session/c'])
+  input.value = ''
+  input.fire('focus', {})
+  assert.deepEqual(
+    [...list.querySelectorAll('[data-dsh-url-router-recent-item]')].map(item => item.getAttribute('data-dsh-url-router-recent-item')),
+    ['#/session/a', '#/session/d', '#/session/c'],
+  )
+})
+
 test('the bar remembers the screens it named, newest first, and never offers the one in front', () => {
   // Given a desktop window whose view moves between two conversations
   const storage = new Map()
