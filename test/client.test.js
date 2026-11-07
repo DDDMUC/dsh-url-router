@@ -3232,6 +3232,45 @@ test('selecting the whole link can be switched off', () => {
   assert.equal(input.selections ?? 0, 0)
 })
 
+test('opening a plugin page does not remember the panel it opens through', () => {
+  // Given the plugins panel and one plugin's page, opened the way the shell does it: the panel is
+  // selected first, then the page opens on top of it
+  const dom = fakeDom([])
+  const { button } = addPluginRow(dom, 'dsh-as-aistudio')
+  const storage = new Map()
+  const env = environment({ panels: ['plugins'], activePanelId: null, storage })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // When the panel is selected and the page opens straight away
+  env.api.selectPanel('plugins')
+  button.click()
+  triggerObservers(dom)
+  env.api.advance(10)
+  // Then only the page is remembered: the panel's own write belonged to the same navigation, and
+  // remembering it put a screen the reader never saw above the one they came from
+  const stored = JSON.parse(storage.get('dsh-url-router-recent') ?? '[]')
+  assert.deepEqual(stored.map(entry => entry.hash), ['#/panel/plugins/dsh-as-aistudio'])
+})
+
+test('a panel visited on its own is still remembered', () => {
+  // Given the plugins panel, with no page opened on top of it
+  const dom = fakeDom([])
+  const storage = new Map()
+  const env = environment({ panels: ['plugins'], activePanelId: null, storage })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // When the panel is selected and nothing follows
+  env.api.selectPanel('plugins')
+  env.api.advance(10)
+  // Then it is remembered: that write waited a tick for a page that never came
+  const stored = JSON.parse(storage.get('dsh-url-router-recent') ?? '[]')
+  assert.deepEqual(stored.map(entry => entry.hash), ['#/panel/plugins'])
+})
+
 test('two plugin pages are two remembered screens, not one', () => {
   // Given a window where two plugin pages were opened, one after the other
   const storage = new Map()
