@@ -3232,6 +3232,65 @@ test('selecting the whole link can be switched off', () => {
   assert.equal(input.selections ?? 0, 0)
 })
 
+test('two plugin pages are two remembered screens, not one', () => {
+  // Given a window where two plugin pages were opened, one after the other
+  const storage = new Map()
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  const { input } = barOf(dom)
+  const paste = fragment => input.fire('paste', { clipboardData: { getData: () => `https://example.test/${fragment}` } })
+  paste('#/panel/plugins/dsh-hide-new-session')
+  paste('#/panel/plugins/dsh-free-search')
+  // Then both are remembered: a panel's inner page is a screen of its own, not a position inside
+  // the panel, so one does not replace the other
+  const stored = JSON.parse(storage.get('dsh-url-router-recent'))
+  assert.deepEqual(stored.map(entry => entry.hash), ['#/panel/plugins/dsh-free-search', '#/panel/plugins/dsh-hide-new-session'])
+})
+
+test('a plugin page on screen leaves the panel itself in the list', () => {
+  // Given the panel's own list was visited, and then one of its plugin pages
+  const storage = new Map()
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  const { input, list } = barOf(dom)
+  const paste = fragment => input.fire('paste', { clipboardData: { getData: () => `https://example.test/${fragment}` } })
+  paste('#/panel/plugins')
+  paste('#/panel/plugins/dsh-hide-new-session')
+  // When the list is opened while that page is on screen
+  env.location.hash = '#/panel/plugins/dsh-hide-new-session'
+  input.fire('focus', {})
+  // Then the panel's own page is still offered — only the page in front is left out
+  const items = [...list.querySelectorAll('[data-dsh-url-router-recent-item]')]
+  assert.deepEqual(items.map(item => item.getAttribute('data-dsh-url-router-recent-item')), ['#/panel/plugins'])
+})
+
+test('two conversations in one workspace are two entries, not one', () => {
+  // Given a window where two conversations of the same workspace were opened
+  const storage = new Map()
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  const { input } = barOf(dom)
+  const paste = fragment => input.fire('paste', { clipboardData: { getData: () => `https://example.test/${fragment}` } })
+  paste('#/workspace/Default%20Project/session/session-aaa')
+  paste('#/workspace/Default%20Project/session/session-bbb')
+  // Then both are remembered: the identity is the conversation, not the workspace it lives in
+  const stored = JSON.parse(storage.get('dsh-url-router-recent'))
+  assert.deepEqual(stored.map(entry => entry.hash), [
+    '#/workspace/Default%20Project/session/session-bbb',
+    '#/workspace/Default%20Project/session/session-aaa',
+  ])
+})
+
+test('a position inside a conversation is the same entry as the conversation', () => {
+  // Given a conversation opened, then one of its turns opened
+  const storage = new Map()
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  const { input } = barOf(dom)
+  const paste = fragment => input.fire('paste', { clipboardData: { getData: () => `https://example.test/${fragment}` } })
+  paste('#/workspace/Default%20Project/session/session-aaa')
+  paste('#/workspace/Default%20Project/session/session-aaa/turn/3')
+  // Then the deeper one replaced it: a turn is a position inside that conversation, not a screen
+  const stored = JSON.parse(storage.get('dsh-url-router-recent'))
+  assert.deepEqual(stored.map(entry => entry.hash), ['#/workspace/Default%20Project/session/session-aaa/turn/3'])
+})
+
 test('the bar remembers the screens it named, newest first, and never offers the one in front', () => {
   // Given a desktop window whose view moves between two conversations
   const storage = new Map()
