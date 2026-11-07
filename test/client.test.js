@@ -3247,7 +3247,7 @@ test('opening a plugin page does not remember the panel it opens through', () =>
   env.api.selectPanel('plugins')
   button.click()
   triggerObservers(dom)
-  env.api.advance(10)
+  env.api.advance(400)
   // Then only the page is remembered: the panel's own write belonged to the same navigation, and
   // remembering it put a screen the reader never saw above the one they came from
   const stored = JSON.parse(storage.get('dsh-url-router-recent') ?? '[]')
@@ -3265,7 +3265,7 @@ test('a panel visited on its own is still remembered', () => {
   open(env)
   // When the panel is selected and nothing follows
   env.api.selectPanel('plugins')
-  env.api.advance(10)
+  env.api.advance(400)
   // Then it is remembered: that write waited a tick for a page that never came
   const stored = JSON.parse(storage.get('dsh-url-router-recent') ?? '[]')
   assert.deepEqual(stored.map(entry => entry.hash), ['#/panel/plugins'])
@@ -3330,6 +3330,21 @@ test('a position inside a conversation is the same entry as the conversation', (
   assert.deepEqual(stored.map(entry => entry.hash), ['#/workspace/Default%20Project/session/session-aaa/turn/3'])
 })
 
+test('one navigation that writes twice is one visit', () => {
+  // Given a window that names two screens inside one burst of writes (a panel selected before its
+  // page opens, a conversation named before its position settles)
+  const storage = new Map()
+  const { env } = openWithTitlebar(['session:session-abc', 'session:session-def'], { menuWidth: 120, storage })
+  env.api.list('session-abc', 'session-def')
+  env.api.view('session-abc')
+  env.api.view('session-def')
+  // When the fragment has settled
+  env.api.advance(400)
+  // Then only the screen it settled on is remembered — the one it passed through never counted
+  const stored = JSON.parse(storage.get('dsh-url-router-recent'))
+  assert.deepEqual(stored.map(entry => entry.hash), ['#/session/session-def'])
+})
+
 test('the bar remembers the screens it named, newest first, and never offers the one in front', () => {
   // Given a desktop window whose view moves between two conversations
   const storage = new Map()
@@ -3337,7 +3352,9 @@ test('the bar remembers the screens it named, newest first, and never offers the
   const { input, list } = barOf(dom)
   env.api.list('session-abc', 'session-def')
   env.api.view('session-abc')
+  env.api.advance(400)
   env.api.view('session-def')
+  env.api.advance(400)
   // Then both screens are remembered, the newest first
   const stored = JSON.parse(storage.get('dsh-url-router-recent'))
   assert.deepEqual(stored.map(entry => entry.hash), ['#/session/session-def', '#/session/session-abc'])
@@ -3349,6 +3366,7 @@ test('the bar remembers the screens it named, newest first, and never offers the
   assert.deepEqual(items.map(item => item.getAttribute('data-dsh-url-router-recent-item')), ['#/session/session-abc'])
   // And going back to a screen already remembered moves it up instead of adding it twice
   env.api.view('session-abc')
+  env.api.advance(400)
   assert.deepEqual(
     JSON.parse(storage.get('dsh-url-router-recent')).map(entry => entry.hash),
     ['#/session/session-abc', '#/session/session-def'],
@@ -3728,6 +3746,7 @@ test('the remembered count is a ceiling, and zero turns the memory off', () => {
   // on display needs, so the count is still exactly one link in the list
   first.env.api.list('session-new')
   first.env.api.view('session-new')
+  first.env.api.advance(400)
   assert.equal(JSON.parse(storage.get('dsh-url-router-recent')).length, 2)
 
   // Given a machine where the count was turned to zero
@@ -4781,7 +4800,9 @@ test('a press outside the bar closes the recent list, even where nothing can tak
   const list = bar.querySelector('[data-dsh-url-router-recent]')
   env.api.list('session-abc', 'session-def')
   env.api.view('session-abc')
+  env.api.advance(400)
   env.api.view('session-def')
+  env.api.advance(400)
   input.fire('focus', {})
   assert.notEqual(list.getAttribute('data-open'), null)
   // When the pointer goes down on a plain element that cannot take focus (no blur would arrive)
@@ -4801,7 +4822,9 @@ test('a press inside the bar leaves the recent list alone', () => {
   const list = bar.querySelector('[data-dsh-url-router-recent]')
   env.api.list('session-abc', 'session-def')
   env.api.view('session-abc')
+  env.api.advance(400)
   env.api.view('session-def')
+  env.api.advance(400)
   input.fire('focus', {})
   assert.notEqual(list.getAttribute('data-open'), null)
   // When the pointer goes down on the input itself
@@ -4850,7 +4873,9 @@ test('leaving the bar puts the recent list away', () => {
   const list = bar.querySelector('[data-dsh-url-router-recent]')
   env.api.list('session-abc', 'session-def')
   env.api.view('session-abc')
+  env.api.advance(400)
   env.api.view('session-def')
+  env.api.advance(400)
   input.fire('focus', {})
   assert.notEqual(list.getAttribute('data-open'), null)
   // When the pointer leaves the bar (the list is its child, so this means really leaving)
@@ -4869,7 +4894,9 @@ test('reaching for the drop-down does not put it away', () => {
   const list = bar.querySelector('[data-dsh-url-router-recent]')
   env.api.list('session-abc', 'session-def')
   env.api.view('session-abc')
+  env.api.advance(400)
   env.api.view('session-def')
+  env.api.advance(400)
   input.fire('focus', {})
   assert.notEqual(list.getAttribute('data-open'), null)
   // When the pointer leaves the bar and arrives on the list below it (crossing the gap between them)
