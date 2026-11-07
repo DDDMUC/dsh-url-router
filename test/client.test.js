@@ -3186,6 +3186,38 @@ test('a message whose turn cannot be named is not offered with a made-up link', 
   assert.equal(list.querySelectorAll('[data-dsh-url-router-message-item]').length, 0)
 })
 
+test('anything inside a turn is searchable, whoever wrote it', () => {
+  // Given a turn holding all three kinds of text: the reader's line, the answer, and a tool's output
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  const turn = dom.document.createElement('div')
+  turn.setAttribute('data-chat-turn', '12')
+  const mine = dom.document.createElement('p')
+  mine.textContent = '帮我把端口改一下'
+  const answer = dom.document.createElement('div')
+  answer.textContent = '改好了，配置文件在 ~/.dsh/freecad.toml'
+  const tool = dom.document.createElement('pre')
+  tool.textContent = 'lsof -i :8080 已经不再被占用'
+  turn.appendChild(mine)
+  turn.appendChild(answer)
+  turn.appendChild(tool)
+  dom.body.appendChild(turn)
+  const { input, list } = barOf(dom)
+  // When a word that only appears in the tool's output is typed
+  input.value = '不再被占用'
+  input.fire('input', {})
+  // Then that turn is offered — the walk reads every leaf under the turn, not just the bubble
+  const item = list.querySelector('[data-dsh-url-router-message-item]')
+  assert.notEqual(item, null)
+  assert.equal(item.getAttribute('data-dsh-url-router-message-item'), '#/session/session-abc/turn/12')
+  // And the answer's own words are findable the same way
+  input.value = 'freecad.toml'
+  input.fire('input', {})
+  assert.equal(
+    list.querySelector('[data-dsh-url-router-message-item]').getAttribute('data-dsh-url-router-message-item'),
+    '#/session/session-abc/turn/12',
+  )
+})
+
 test('typing nothing keeps the screen out of the drop-down', () => {
   // Given a screen full of words
   const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
