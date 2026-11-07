@@ -3139,6 +3139,53 @@ test('the newest line is found even when the turn also holds older pieces', () =
   assert.ok(item.children.find(child => child.className === 'dshur-kind').textContent.includes('27'))
 })
 
+test('a message that only knows a placeholder turn is placed by the layout', () => {
+  // Given a long conversation where the row around the message says turn 0 (a placeholder), while
+  // the turn it really belongs to is the block drawn over the same place
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  const block = dom.document.createElement('div')
+  block.setAttribute('data-chat-turn', '187')
+  block.getBoundingClientRect = () => ({ top: 90, left: 0, width: 800, height: 200 })
+  dom.body.appendChild(block)
+  // ... and the row that holds the message carries a placeholder number, beside that block
+  const placeholder = dom.document.createElement('div')
+  placeholder.setAttribute('data-chat-turn', '0')
+  placeholder.getBoundingClientRect = () => ({ top: 120, left: 0, width: 800, height: 40 })
+  const line = dom.document.createElement('p')
+  line.textContent = '03:59 继续'
+  line.getBoundingClientRect = () => ({ top: 124, left: 0, width: 200, height: 20 })
+  placeholder.appendChild(line)
+  dom.body.appendChild(placeholder)
+  const { input, list } = barOf(dom)
+  // When the word is typed
+  input.value = '继续'
+  input.fire('input', {})
+  // Then the turn the block names is offered ...
+  const item = list.querySelector('[data-dsh-url-router-message-item]')
+  assert.notEqual(item, null)
+  assert.equal(item.getAttribute('data-dsh-url-router-message-item'), '#/session/session-abc/turn/187')
+  // ... and the row is named by the line, not by its clock
+  const label = item.children.find(child => child.className === 'dshur-title').textContent
+  assert.equal(label, '继续')
+})
+
+test('a message whose turn cannot be named is not offered with a made-up link', () => {
+  // Given a message whose only turn hook is a placeholder, with nothing else on screen to place it
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  const placeholder = dom.document.createElement('div')
+  placeholder.setAttribute('data-chat-turn', '0')
+  const line = dom.document.createElement('p')
+  line.textContent = '继续'
+  placeholder.appendChild(line)
+  dom.body.appendChild(placeholder)
+  const { input, list } = barOf(dom)
+  // When the word is typed
+  input.value = '继续'
+  input.fire('input', {})
+  // Then nothing is offered: a link to "turn 0" would jump somewhere else entirely
+  assert.equal(list.querySelectorAll('[data-dsh-url-router-message-item]').length, 0)
+})
+
 test('typing nothing keeps the screen out of the drop-down', () => {
   // Given a screen full of words
   const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
