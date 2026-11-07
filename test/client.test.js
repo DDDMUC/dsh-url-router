@@ -3218,6 +3218,28 @@ test('anything inside a turn is searchable, whoever wrote it', () => {
   )
 })
 
+test('a phrase that appears in many turns offers them all, up to eight', () => {
+  // Given twelve turns that all say the same word
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  for (let turn = 1; turn <= 12; turn += 1) {
+    const row = dom.document.createElement('div')
+    row.setAttribute('data-chat-turn', String(turn))
+    row.textContent = `第 ${turn} 轮也提到了鱼塘这件事`
+    dom.body.appendChild(row)
+  }
+  const { input, list } = barOf(dom)
+  // When that word is typed
+  input.value = '鱼塘'
+  input.fire('input', {})
+  // Then the drop-down offers eight of them, one per turn — not just a couple
+  const items = [...list.querySelectorAll('[data-dsh-url-router-message-item]')]
+  assert.equal(items.length, 8)
+  assert.deepEqual(
+    items.map(item => item.getAttribute('data-dsh-url-router-message-item')),
+    Array.from({ length: 8 }, (_, index) => `#/session/session-abc/turn/${index + 1}`),
+  )
+})
+
 test('typing nothing keeps the screen out of the drop-down', () => {
   // Given a screen full of words
   const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
