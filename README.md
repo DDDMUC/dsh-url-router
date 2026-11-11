@@ -142,7 +142,11 @@ macOS 的标题栏是**原生**的（左边红黄绿三个灯），页面里没�
 
 浏览器 Console 里调用 `window.__dshUrlRouter.report()` ✓，它会列出：当前地址栏 ✓、本插件认为屏幕在哪个界面 ✓、正在落地的链接与重试次数 ✓、**每一层读到了多少个钩子** ✓、右栏 pane 的**真实 kind 列表** ✓、它**拒绝认领**的段位 ✓、以及 `compat`（与当前 DSH 版本不兼容的层，见下）✓ 和 `work`（reconcile / 摆放次数，看性能用）✓。它绝不出错、也不写任何东西 ✓。
 
-**这一屏能链接到什么（给 AI 用的清单）** ✓（2026-11-07）：`window.__dshUrlRouter.links()`（或 `report().links`，或 `document.getElementById('dsh-url-router-titlebar').links()`）返回一份只读清单 —— `{here, count, truncated, links:[{href, kind, label, from}]}`。`here` 是当前界面的链接 ✓；`links` 把这一屏**所有**可寻址的东西列出来：界面上能变成链接的行（`from: "screen"`）、会话里**已渲染**的每一轮（`from: "turn"`，标「第 N 轮」）、以及记忆里的链接（`from: "recent"`）✓；当前界面自己不列 ✓；最多 60 条 ✓（`truncated` 说明是否被截断 ✓）。它是只读的：不画东西、不导航 ✓ —— AI 从这份清单里挑链接，比从外面猜选择器可靠 ✓。
+**这一屏能链接到什么（给 AI 用的清单）** ✓（2026-11-07）：`window.__dshUrlRouter.links()`（或 `report().links`，或 `document.getElementById('dsh-url-router-titlebar').links()`）返回一份只读清单 —— `{here, query, matched, count, truncated, links:[{href, kind, label, from}], actions:[{label, safe, role, tag}]}`。
+- `here` = 当前界面的链接 ✓；`links` 列出这一屏**所有**可寻址的东西：能变成链接的行（`from: "screen"`）、会话里**已渲染**的每一轮（`from: "turn"`，标「第 N 轮」）、记忆里的链接（`from: "recent"`）✓；当前界面自己不列 ✓，去重 ✓，默认最多 60 条 ✓（`truncated` 说明是否被截断 ✓）。
+- **`actions`** 列出这一屏的**控件** ✓：`button` / `role=button` / `summary`，带**可读名字**（`aria-label` → `title` → 文本）✓；**开关类一律不列** ✓（`switch` / `checkbox` / `radio` / `slider` / `tab`，它们改变状态，不是"去哪儿"）✓；危险词（删除 / 清空 / 卸载 / delete / reset …）标 `safe: false` ✓，让调用方**先看见再决定** ✓。
+- **可带参数** ✓：`links({ query })` 按文字筛 ✓、`links({ from: 'turn' })` 只要某类来源 ✓、`links({ limit })` 截断（1–200 ✓）。筛选在截断**之前**做 ✓，所以 `matched` 说得出"一共命中几条" ✓。
+- 只读：不画东西、不导航 ✓ —— AI 从这份清单里挑链接/看清控件，比从外面猜选择器可靠 ✓。**控件只是清单，不是权限** ✓：它不替任何人点下去 ✓。
 
 **兼容自检** ✓：官方一改 DOM 契约，插件不会报错，只会**静默不再给某一层写链接** ✗。所以渲染期会做五项检查（设置浮层标记、插件管理器钩子、自动化筛选组、会话页签容器、侧栏会话行）✓：屏幕上确实出现了那一层、但本插件要读的钩子没了 → **每个界面只警告一次** ✓，措辞统一为「与当前 DSH 版本不兼容」✓，同时记进 `report().compat` ✓。它**只告警、不改行为** ✓。
 

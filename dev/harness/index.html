@@ -322,11 +322,26 @@ setTimeout(() => {
       list.appendChild(line)
     }
     document.querySelector('.main').appendChild(list)
+    // 两个真按钮：一个普通动作、一个危险动作（清单要标出来）
+    const send = document.createElement('button')
+    send.setAttribute('aria-label', '发送')
+    send.textContent = '发送'
+    send.style.cssText = 'margin:0 24px;padding:6px 14px;border-radius:8px;border:1px solid #d6dbe6;background:#fff'
+    document.querySelector('.main').appendChild(send)
+    const remove = document.createElement('button')
+    remove.setAttribute('aria-label', '删除会话')
+    remove.textContent = '删除会话'
+    remove.style.cssText = 'margin:10px 24px;padding:6px 14px;border-radius:8px;border:1px solid #f0c8c8;background:#fff'
+    document.querySelector('.main').appendChild(remove)
     location.hash = '#/session/session-harness'
     setTimeout(() => {
       const barNode = document.getElementById('dsh-url-router-titlebar')
       const inventory = barNode?.links?.() ?? window.__dshUrlRouter?.links?.()
       report.textContent += `\nLINKS ${JSON.stringify(inventory, null, 1)}`
+      const narrowed = barNode?.links?.({ query: '智能体' })
+      report.textContent += `\nNARROWED count=${narrowed?.count} matched=${narrowed?.matched} first=${narrowed?.links?.[0]?.href}`
+      const onlyTurns = barNode?.links?.({ from: 'turn', limit: 1 })
+      report.textContent += `\nONLY-TURNS count=${onlyTurns?.count} matched=${onlyTurns?.matched} truncated=${onlyTurns?.truncated}`
     }, 600)
   } else if (CASE === 'panel') {
     // 切到没有头部行的界面（面板页）

@@ -3276,6 +3276,69 @@ test('the screen can list everything it offers as a link', () => {
   )
 })
 
+test('the inventory also says which controls do something, and flags the dangerous ones', () => {
+  // Given a screen with a plain action, a destructive one, and a switch
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  const send = dom.document.createElement('button')
+  send.setAttribute('aria-label', '发送')
+  send.getBoundingClientRect = () => ({ top: 90, left: 10, width: 60, height: 24 })
+  const remove = dom.document.createElement('button')
+  remove.setAttribute('aria-label', '删除会话')
+  remove.getBoundingClientRect = () => ({ top: 120, left: 10, width: 60, height: 24 })
+  const toggle = dom.document.createElement('button')
+  toggle.setAttribute('role', 'switch')
+  toggle.setAttribute('aria-label', '启用智能体团队')
+  toggle.getBoundingClientRect = () => ({ top: 150, left: 10, width: 60, height: 24 })
+  dom.body.appendChild(send)
+  dom.body.appendChild(remove)
+  dom.body.appendChild(toggle)
+  // When the inventory is asked for
+  const actions = env.window.__dshUrlRouter.links().actions
+  const byLabel = new Map(actions.map(action => [action.label, action]))
+  // Then both buttons are listed, the destructive one flagged, and the switch is not offered at all
+  assert.equal(byLabel.get('发送').safe, true)
+  assert.equal(byLabel.get('删除会话').safe, false)
+  assert.equal(byLabel.has('启用智能体团队'), false)
+  // ... and nothing this plugin draws counts as an action of the page
+  assert.equal(actions.some(action => action.label.includes('界面上的字')), false)
+})
+
+test('the inventory can be asked for one kind of link, or narrowed by a word', () => {
+  // Given a screen with turns, a plugin card, and a remembered link
+  const storage = new Map([['dsh-url-router-recent', JSON.stringify([
+    { hash: '#/session/session-old', source: 'visit', at: 1 },
+  ])]])
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc', storage })
+  const card = dom.document.createElement('li')
+  card.setAttribute('data-plugin-package', 'dsh-agent-team')
+  card.textContent = '智能体团队'
+  dom.body.appendChild(card)
+  for (const turn of [3, 4]) {
+    const row = dom.document.createElement('div')
+    row.setAttribute('data-chat-turn', String(turn))
+    row.textContent = `第 ${turn} 轮说的话`
+    dom.body.appendChild(row)
+  }
+  const links = options => env.window.__dshUrlRouter.links(options)
+  // Then a word narrows it to what matches ...
+  const narrowed = links({ query: '智能体' })
+  assert.equal(narrowed.count, 1)
+  assert.equal(narrowed.links[0].href, '#/panel/plugins/dsh-agent-team')
+  // ... a source narrows it to that source ...
+  const onlyTurns = links({ from: 'turn' })
+  assert.equal(onlyTurns.links.map(link => link.from).join(','), 'turn,turn')
+  // ... a limit cuts the list but says how many matched ...
+  const capped = links({ from: 'turn', limit: 1 })
+  assert.equal(capped.count, 1)
+  assert.equal(capped.matched, 2)
+  assert.equal(capped.truncated, true)
+  // ... and a word nobody says matches nothing at all
+  const empty = links({ query: '没有这句话' })
+  assert.equal(empty.count, 0)
+  assert.equal(empty.matched, 0)
+  assert.equal(empty.here, '#/session/session-abc')
+})
+
 test('a page without a bar has no inventory to offer', () => {
   // Given a plain page (no desktop window, so no bar)
   const env = environment({})
