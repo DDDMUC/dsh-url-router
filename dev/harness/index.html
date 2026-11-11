@@ -298,6 +298,36 @@ setTimeout(() => {
       field.dispatchEvent(new Event('input', { bubbles: true }))
       settle('输入「用户输入」')
     }, 400)
+  } else if (CASE === 'inventory') {
+    // 把「这一屏能链接到哪些东西」导出成一份清单：AI 不必猜选择器
+    const side = document.querySelector('.sidebar')
+    const row = document.createElement('div')
+    row.setAttribute('data-row-key', 'session:session-abc')
+    row.style.cssText = 'padding:6px 8px;border-radius:6px;margin-top:8px;background:#fff'
+    row.textContent = '鱼塘'
+    side.appendChild(row)
+    const card = document.createElement('li')
+    card.setAttribute('data-plugin-package', 'dsh-agent-team')
+    card.style.cssText = 'list-style:none;margin:12px 16px;padding:10px 12px;border:1px solid #e2e6f0;border-radius:10px'
+    card.textContent = '智能体团队'
+    document.querySelector('.main').appendChild(card)
+    const list = document.createElement('div')
+    list.setAttribute('data-conversation-scroll', '')
+    list.style.cssText = 'margin:12px 24px;display:flex;flex-direction:column;gap:6px'
+    for (const turn of [3, 4]) {
+      const line = document.createElement('div')
+      line.setAttribute('data-chat-turn', String(turn))
+      line.style.cssText = 'padding:6px 10px;border-radius:8px;background:#f4f5f8;font-size:13px'
+      line.textContent = `第 ${turn} 轮说的话`
+      list.appendChild(line)
+    }
+    document.querySelector('.main').appendChild(list)
+    location.hash = '#/session/session-harness'
+    setTimeout(() => {
+      const barNode = document.getElementById('dsh-url-router-titlebar')
+      const inventory = barNode?.links?.() ?? window.__dshUrlRouter?.links?.()
+      report.textContent += `\nLINKS ${JSON.stringify(inventory, null, 1)}`
+    }, 600)
   } else if (CASE === 'panel') {
     // 切到没有头部行的界面（面板页）
     const main = document.querySelector('.main')

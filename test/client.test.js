@@ -3240,6 +3240,52 @@ test('a phrase that appears in many turns offers them all, up to eight', () => {
   )
 })
 
+test('the screen can list everything it offers as a link', () => {
+  // Given a conversation with two turns, a sidebar row and a plugin card on screen
+  const { env, dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, hash: '#/session/session-abc' })
+  dom.rows[0].textContent = '鱼塘'
+  const card = dom.document.createElement('li')
+  card.setAttribute('data-plugin-package', 'dsh-agent-team')
+  card.textContent = '智能体团队'
+  dom.body.appendChild(card)
+  for (const turn of [3, 4]) {
+    const row = dom.document.createElement('div')
+    row.setAttribute('data-chat-turn', String(turn))
+    row.textContent = `第 ${turn} 轮说的话`
+    dom.body.appendChild(row)
+  }
+  // When the inventory is asked for
+  const inventory = env.window.__dshUrlRouter.links()
+  // Then it names where the reader is, and every link this screen offers — each with its kind
+  assert.equal(inventory.here, '#/session/session-abc')
+  const byHref = new Map(inventory.links.map(link => [link.href, link]))
+  assert.equal(byHref.get('#/panel/plugins/dsh-agent-team').kind, '面板')
+  assert.equal(byHref.get('#/session/session-abc/turn/3').kind, '轮次')
+  assert.equal(byHref.get('#/session/session-abc/turn/3').from, 'turn')
+  // ... the turns in reading order, and never the screen the reader is already on
+  const turns = inventory.links.filter(link => link.from === 'turn').map(link => link.href)
+  // The list comes from the plugin's own realm, so compare it by value, not by prototype.
+  assert.equal(turns.join(' '), '#/session/session-abc/turn/3 #/session/session-abc/turn/4')
+  assert.equal(inventory.links.some(link => link.href === inventory.here), false)
+  // ... and the health report carries the same list
+  const reported = env.window.__dshUrlRouter.report().links
+  assert.equal(reported.here, inventory.here)
+  assert.equal(
+    reported.links.map(link => link.href).join(' '),
+    inventory.links.map(link => link.href).join(' '),
+  )
+})
+
+test('a page without a bar has no inventory to offer', () => {
+  // Given a plain page (no desktop window, so no bar)
+  const env = environment({})
+  env.window.document = fakeDom([]).document
+  env.window.getComputedStyle = () => ({ position: 'static' })
+  open(env)
+  // Then the seam answers null instead of inventing a list
+  assert.equal(env.window.__dshUrlRouter.links(), null)
+})
+
 test('typing nothing keeps the screen out of the drop-down', () => {
   // Given a screen full of words
   const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
