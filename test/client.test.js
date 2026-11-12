@@ -5339,6 +5339,81 @@ test('a title painted past its own box still keeps the bar off it', () => {
   assert.ok(box.left >= 560, `expected the bar past the painted title, got ${box.left}`)
 })
 
+test('a heading stretched across the column still counts, as its words', () => {
+  // Given a block-level heading: its box spans the whole column, its words are a few centimetres
+  const { dom } = openMacBar({ innerWidth: 1300 })
+  const heading = dom.document.createElement('h1')
+  heading.ownText = '隐藏与整理'
+  heading.getBoundingClientRect = () => ({ top: 30, left: 309, width: 956, height: 28 })
+  dom.body.appendChild(heading)
+  dom.document.createRange = () => ({
+    selectNodeContents() {},
+    getBoundingClientRect: () => ({ top: 30, left: 309, width: 100, height: 28 }),
+  })
+  triggerObservers(dom)
+  // Then the bar goes after the words, not over them — the width cap is about containers, and a
+  // heading is not a container (reported 2026-11-13: the bar drawn across 「隐藏与整理」)
+  const box = barBoxOf(dom)
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 409, `expected the bar after the heading's words, got ${box.left}`)
+})
+
+test('a page that draws its own title keeps the bar off it', () => {
+  // Given a full-bleed page: no shell header row, its own heading near the top, and a sidebar
+  // whose top is already taken
+  const { dom } = openMacBar({ innerWidth: 1300 })
+  const toggle = dom.document.createElement('button')
+  toggle.getBoundingClientRect = () => ({ top: 8, left: 8, width: 26, height: 26 })
+  const more = dom.document.createElement('button')
+  more.getBoundingClientRect = () => ({ top: 8, left: 42, width: 78, height: 26 })
+  dom.body.appendChild(toggle)
+  dom.body.appendChild(more)
+  const page = dom.document.createElement('div')
+  const heading = dom.document.createElement('h1')
+  heading.ownText = '隐藏与整理'
+  heading.getBoundingClientRect = () => ({ top: 30, left: 292, width: 96, height: 27 })
+  page.appendChild(heading)
+  dom.body.appendChild(page)
+  triggerObservers(dom)
+  // Then the bar starts after the heading, not on top of its first line
+  const box = barBoxOf(dom)
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 388, `expected the bar after the heading, got ${box.left}`)
+})
+
+test('a long sidebar cannot eat the budget before the page is measured', () => {
+  // Given a screen whose sidebar holds thousands of nodes (a long session list) and a page that
+  // draws its own heading near the top
+  const { dom } = openMacBar({ innerWidth: 1300 })
+  const sidebar = dom.document.createElement('div')
+  for (let index = 0; index < 1200; index += 1) {
+    // Each row is a chain of wrappers around its text — the shape a real virtualized list has, and
+    // the shape that makes a depth-first walk spend its whole budget inside the sidebar.
+    const row = dom.document.createElement('div')
+    row.setAttribute('data-row-key', `session:session-${index}`)
+    row.getBoundingClientRect = () => ({ top: 200 + index, left: 0, width: 260, height: 24 })
+    let inner = row
+    for (let depth = 0; depth < 6; depth += 1) {
+      const wrapper = dom.document.createElement('div')
+      inner.appendChild(wrapper)
+      inner = wrapper
+    }
+    inner.textContent = `会话 ${index}`
+    inner.getBoundingClientRect = () => ({ top: 200 + index, left: 0, width: 260, height: 24 })
+    sidebar.appendChild(row)
+  }
+  dom.body.appendChild(sidebar)
+  const heading = dom.document.createElement('h1')
+  heading.ownText = '隐藏与整理'
+  heading.getBoundingClientRect = () => ({ top: 30, left: 292, width: 96, height: 27 })
+  dom.body.appendChild(heading)
+  triggerObservers(dom)
+  // Then the heading is still measured, so the bar stops after it
+  const box = barBoxOf(dom)
+  assert.notEqual(box.display, 'none')
+  assert.ok(box.left >= 388, `expected the bar past the heading, got ${box.left}`)
+})
+
 test('a plugin row reusing the titleRow class does not drag the bar down', () => {
   // Given a page whose own rows carry the same class the shell's header does, far below it
   const { dom } = openMacBar({ innerWidth: 1200 })

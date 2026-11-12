@@ -184,6 +184,54 @@ setTimeout(() => {
     grip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: startX, buttons: 1 }))
     document.dispatchEvent(new PointerEvent('pointermove', { clientX: startX - 180, buttons: 1 }))
     settle('把长度往左拖了 180')
+  } else if (CASE === 'fullbleed') {
+    // 面板页那种形状：没有外壳头部行，页面自己的标题就在窗口左上，正文从 y≈8 开始
+    const main = document.querySelector('.main')
+    const header = document.querySelector('.headerRow')
+    header.remove()
+    const page = document.createElement('div')
+    page.style.cssText = 'padding:8px 12px;'
+    const title = document.createElement('h1')
+    title.textContent = '隐藏与整理'
+    title.style.cssText = 'margin:22px 0 0;font-size:20px'
+    const sub = document.createElement('h3')
+    sub.textContent = '左栏'
+    sub.style.cssText = 'margin:18px 0 0;font-size:13px;color:#5b6478'
+    page.appendChild(title)
+    page.appendChild(sub)
+    main.insertBefore(page, main.firstChild)
+    // 侧栏顶部不是空的（真机那里是红绿灯和折叠按钮），所以不许把框塞进侧栏
+    const side = document.querySelector('.sidebar')
+    const sideTop = document.createElement('div')
+    sideTop.style.cssText = 'display:flex;gap:8px;padding:2px 0 10px'
+    const toggle = document.createElement('button')
+    toggle.textContent = '▯'
+    toggle.style.cssText = 'width:26px;height:26px;border-radius:6px;border:1px solid #cfd6e6;background:#fff'
+    const more = document.createElement('button')
+    more.textContent = '上下文洞察'
+    more.style.cssText = 'height:26px;padding:0 8px;border-radius:6px;border:1px solid #cfd6e6;background:#fff;font-size:12px'
+    sideTop.appendChild(toggle)
+    sideTop.appendChild(more)
+    side.insertBefore(sideTop, side.firstChild)
+    // 侧栏里有很长的会话列表：深度优先的走法会把预算全耗在这里
+    for (let index = 0; index < 900; index += 1) {
+      const row = document.createElement('div')
+      row.setAttribute('data-row-key', `session:session-list-${index}`)
+      row.style.cssText = 'padding:4px 6px;font-size:12px;color:#5b6478'
+      row.textContent = `会话 ${index}`
+      side.appendChild(row)
+    }
+    settle('没有外壳头部行、侧栏顶部被占、侧栏很长、页面自己的标题在最上面')
+    setTimeout(() => {
+      const node = document.getElementById('dsh-url-router-titlebar')
+      report.textContent += `\nLINE ${JSON.stringify(node?.line?.())}`
+      const h = document.querySelector('.main h1')
+      const r = h?.getBoundingClientRect()
+      report.textContent += `\nH1 rect=${r ? `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}` : 'none'}`
+      const dump = (x, y) => document.elementsFromPoint(x, y).map(n => `${n.tagName}.${String(n.className || '').slice(0, 12)}`).join(' / ')
+      report.textContent += `\n@340,24 = ${dump(340, 24)}`
+      report.textContent += `\n@340,40 = ${dump(340, 40)}`
+    }, 800)
   } else if (CASE === 'squeezed') {
     // 真机那种形状：标题的盒子被挤窄了，字却照画出去 —— 框不能停在盒子后面
     const header = document.querySelector('.headerRow')
