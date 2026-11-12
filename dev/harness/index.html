@@ -184,6 +184,15 @@ setTimeout(() => {
     grip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: startX, buttons: 1 }))
     document.dispatchEvent(new PointerEvent('pointermove', { clientX: startX - 180, buttons: 1 }))
     settle('把长度往左拖了 180')
+  } else if (CASE === 'squeezed') {
+    // 真机那种形状：标题的盒子被挤窄了，字却照画出去 —— 框不能停在盒子后面
+    const header = document.querySelector('.headerRow')
+    const title = document.createElement('h1')
+    title.className = 'crumb'
+    title.textContent = '工具调用是否单次请求 (1)'
+    title.style.cssText = 'width:132px;white-space:nowrap;overflow:visible;flex:none'
+    header.insertBefore(title, header.firstChild)
+    settle('标题的字画出了自己的盒子')
   } else if (CASE === 'crowded') {
     // 窄窗口 + 头部右侧一整簇按钮（真机那样：勾选框、几个图标、电源）
     const header = document.querySelector('.headerRow')

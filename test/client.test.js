@@ -3543,6 +3543,26 @@ test('A B C D, back to A, then B: what the bar says and what the list offers', (
   )
 })
 
+test('a plugin page in the list says which page it is, not just 面板', () => {
+  // Given a remembered plugin page, and the plugin's card on screen (so the page has a name)
+  const storage = new Map([['dsh-url-router-recent', JSON.stringify([
+    { hash: '#/panel/plugins/dsh-hide-new-session', source: 'visit', at: 1 },
+  ])]])
+  const { dom } = openWithTitlebar(['session:session-abc'], { menuWidth: 120, storage })
+  const card = dom.document.createElement('li')
+  card.setAttribute('data-plugin-package', 'dsh-hide-new-session')
+  card.textContent = '隐藏新会话按钮'
+  dom.body.appendChild(card)
+  const { input, list } = barOf(dom)
+  // When the drop-down is opened
+  input.fire('focus', {})
+  // Then the row is named by the page, not by the panel it lives in
+  const item = list.querySelector('[data-dsh-url-router-recent-item]')
+  assert.notEqual(item, null)
+  const title = item.children.find(child => child.className === 'dshur-title')
+  assert.equal(title.textContent, '隐藏新会话按钮')
+})
+
 test('the bar remembers the screens it named, newest first, and never offers the one in front', () => {
   // Given a desktop window whose view moves between two conversations
   const storage = new Map()
@@ -5295,6 +5315,28 @@ test('the bar stops short of a control it would otherwise be drawn across', () =
   assert.notEqual(box.display, 'none')
   assert.ok(box.left + box.width <= 400, `expected the bar before the cluster, got ${box.left}+${box.width}`)
   assert.equal(box.bar.getAttribute('data-dsh-url-router-overlap'), null)
+})
+
+test('a title painted past its own box still keeps the bar off it', () => {
+  // Given a header title whose box ends at 433 but whose words are drawn on to 560
+  // (an inline span inside a squeezed flex row — measured on a real machine)
+  const { dom } = openMacBar({ innerWidth: 1280 })
+  const row = dom.document.createElement('div')
+  row.getBoundingClientRect = () => ({ top: 8, left: 0, width: 1280, height: 34 })
+  const title = dom.document.createElement('span')
+  title.ownText = '工具调用是否单次请求 (1)'
+  title.getBoundingClientRect = () => ({ top: 12, left: 301, width: 132, height: 28 })
+  row.appendChild(title)
+  dom.body.appendChild(row)
+  // The document can measure where the text really ends
+  dom.document.createRange = () => ({
+    selectNodeContents() {},
+    getBoundingClientRect: () => ({ top: 12, left: 301, width: 259, height: 28 }),
+  })
+  triggerObservers(dom)
+  // Then the bar starts after the words, not after the box
+  const box = barBoxOf(dom)
+  assert.ok(box.left >= 560, `expected the bar past the painted title, got ${box.left}`)
 })
 
 test('a plugin row reusing the titleRow class does not drag the bar down', () => {
