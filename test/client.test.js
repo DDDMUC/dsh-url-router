@@ -5842,6 +5842,50 @@ test('dragging the Windows edge shortens the bar, and the strip keeps the share'
   assert.equal(storage.has('dsh-url-router-bar-width'), false)
 })
 
+test('the edge follows the pointer, however many moves it takes', () => {
+  // Given a mac bar whose right-hand edge is grabbed
+  const { dom } = openMacBar({ innerWidth: 1440 })
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  triggerObservers(dom)
+  const grip = bar.querySelector('[data-dsh-url-router-grip="right"]')
+  const start = Number.parseInt(bar.style.width, 10)
+  assert.ok(Number.isFinite(start) && start > 200, `expected a measured bar, got ${bar.style.width}`)
+  const startX = (Number.parseInt(bar.style.left, 10) || 0) + start
+  grip.fire('pointerdown', { button: 0, clientX: startX, preventDefault() {} })
+  // When the pointer moves in three steps, thirty pixels in total
+  dom.document.fire('pointermove', { clientX: startX + 10 })
+  const afterFirst = Number.parseInt(bar.style.width, 10)
+  dom.document.fire('pointermove', { clientX: startX + 20 })
+  dom.document.fire('pointermove', { clientX: startX + 30 })
+  const afterAll = Number.parseInt(bar.style.width, 10)
+  // Then the edge is ten pixels further after the first move and thirty after all of them — each
+  // move is measured from the press, so the bar never runs away from the pointer
+  assert.equal(afterFirst, start + 10)
+  assert.equal(afterAll, start + 30)
+})
+
+test('the left-hand edge follows the pointer too, and the right edge stays put', () => {
+  // Given a mac bar whose left-hand edge is grabbed
+  const { dom } = openMacBar({ innerWidth: 1440 })
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  triggerObservers(dom)
+  const grip = bar.querySelector('[data-dsh-url-router-grip="left"]')
+  const startLeft = Number.parseInt(bar.style.left, 10)
+  const startWidth = Number.parseInt(bar.style.width, 10)
+  const right = startLeft + startWidth
+  grip.fire('pointerdown', { button: 0, clientX: startLeft, preventDefault() {} })
+  // When the pointer comes in two steps, forty pixels to the right
+  dom.document.fire('pointermove', { clientX: startLeft + 20 })
+  const firstLeft = Number.parseInt(bar.style.left, 10)
+  dom.document.fire('pointermove', { clientX: startLeft + 40 })
+  const lastLeft = Number.parseInt(bar.style.left, 10)
+  const lastWidth = Number.parseInt(bar.style.width, 10)
+  // Then the left edge tracks the pointer exactly, and the right edge has not moved a pixel
+  assert.equal(firstLeft, startLeft + 20)
+  assert.equal(lastLeft, startLeft + 40)
+  assert.equal(lastLeft + lastWidth, right)
+})
+
 test('dragging the handle sets the length, and the length keeps the window\'s share', () => {
   // Given a mac screen with room to the right of what the header row draws
   const { env, dom } = openMacBar({ innerWidth: 1280 })
