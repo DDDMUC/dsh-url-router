@@ -5232,6 +5232,22 @@ test('the bar is pinned to one line on every screen, like the power button', () 
   assert.equal(anchor.top, 11)
 })
 
+test('the field cannot be capped by an app-wide input rule', () => {
+  // Given a desktop window with the bar drawn
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  // Then the field's own rule undoes the shell's input sizing: a width cap or `field-sizing:
+  // content` makes the address look 170px wide inside a 600px bar, and dragging then changes
+  // nothing the reader can see (reported 2026-11-13: "拖不动")
+  const styles = [...(dom.document.head?.children ?? dom.head.children)]
+    .filter(node => node.tagName === 'STYLE' || node.id !== undefined)
+  const text = styles.map(node => String(node.textContent ?? '')).join('')
+  assert.ok(text.includes('input{'), 'the input rule must be in the stylesheet')
+  const rule = text.slice(text.indexOf('input{'))
+  assert.match(rule.slice(0, 400), /max-width:none/)
+  assert.match(rule.slice(0, 400), /field-sizing:fixed/)
+  assert.match(rule.slice(0, 400), /min-width:0/)
+})
+
 test('the bar takes the shell corner line and stays off the title', () => {
   // Given a header row with the shell's own corner
   const { dom } = openMacBar({ innerWidth: 1200 })
@@ -5412,6 +5428,34 @@ test('a long sidebar cannot eat the budget before the page is measured', () => {
   const box = barBoxOf(dom)
   assert.notEqual(box.display, 'none')
   assert.ok(box.left >= 388, `expected the bar past the heading, got ${box.left}`)
+})
+
+test('a control nobody can see does not shrink the stretch the bar may use', () => {
+  // Given a header with a control that is painted nowhere (an overflow menu before it fades in)
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  const ghost = dom.document.createElement('button')
+  ghost.getBoundingClientRect = () => ({ top: 8, left: 400, width: 300, height: 26 })
+  const visible = dom.document.createElement('button')
+  visible.getBoundingClientRect = () => ({ top: 8, left: 1000, width: 26, height: 26 })
+  dom.body.appendChild(ghost)
+  dom.body.appendChild(visible)
+  const env = environment({ innerWidth: 1400, protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = node => ({
+    position: 'static',
+    visibility: 'visible',
+    display: 'inline-block',
+    opacity: node === ghost ? '0' : '1',
+  })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  // Then the stretch runs up to the control that is really there, not to the invisible one
+  const line = env.window.__dshUrlRouter.reportLine()
+  const spans = (line?.spans ?? []).filter(span => span.left === 400)
+  assert.equal(spans.length, 0, 'the invisible control must not count as occupied')
+  const box = barBoxOf(dom)
+  assert.ok(box.left + box.width > 700, `expected the bar to use the space, got ${box.left}+${box.width}`)
 })
 
 test('a plugin row reusing the titleRow class does not drag the bar down', () => {
