@@ -91,6 +91,16 @@ if (new URLSearchParams(location.search).get('platform') === 'windows') {
 }
 </script>
 <script>
+// 宿主条（dsh-topbar）的形状：<html data-dshtb-on> + --dshtb-h，并用 !important 定住纵向
+if (new URLSearchParams(location.search).get('case') === 'strip') {
+  document.documentElement.setAttribute('data-dshtb-on', '')
+  document.documentElement.style.setProperty('--dshtb-h', '42px')
+  const host = document.createElement('style')
+  host.textContent = '#dsh-url-router-titlebar[data-dsh-url-router-platform="mac"]{top:8px !important;height:26px !important}'
+  document.head.appendChild(host)
+}
+</script>
+<script>
 // 复现"记下的长度很短 + 值很长"：真机上那条 228px 的框
 if (new URLSearchParams(location.search).get('case') === 'narrow') {
   localStorage.setItem('dsh-url-router-bar-width', JSON.stringify({ v: 2, ratio: Number(new URLSearchParams(location.search).get('ratio') || 0.18), shift: 0 }))
@@ -232,6 +242,17 @@ setTimeout(() => {
       report.textContent += `\n@340,24 = ${dump(340, 24)}`
       report.textContent += `\n@340,40 = ${dump(340, 40)}`
     }, 800)
+  } else if (CASE === 'strip') {
+    // 条是空的：不量线、不避字，纵向交给宿主
+    setTimeout(() => {
+      const node = document.getElementById('dsh-url-router-titlebar')
+      const box = node?.getBoundingClientRect()
+      report.textContent += `\nSTRIP inline top=${JSON.stringify(node?.style.top ?? null)} height=${JSON.stringify(node?.style.height ?? null)}`
+      report.textContent += `\nSTRIP rect=${box ? `${Math.round(box.left)},${Math.round(box.top)} ${Math.round(box.width)}x${Math.round(box.height)}` : 'none'}`
+      const field = node?.querySelector('input')
+      const input = node?.querySelector('input')?.getBoundingClientRect()
+      report.textContent += `\nSTRIP field=${input ? `${Math.round(input.width)}` : 'none'}`
+    }, 600)
   } else if (CASE === 'squeezed') {
     // 真机那种形状：标题的盒子被挤窄了，字却照画出去 —— 框不能停在盒子后面
     const header = document.querySelector('.headerRow')

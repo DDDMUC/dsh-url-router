@@ -5458,6 +5458,59 @@ test('a control nobody can see does not shrink the stretch the bar may use', () 
   assert.ok(box.left + box.width > 700, `expected the bar to use the space, got ${box.left}+${box.width}`)
 })
 
+test('inside a host strip the bar only chooses its own width', () => {
+  // Given a page that hands the bar a blank strip at the top (dsh-topbar), with a title that would
+  // otherwise be in the way
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  dom.document.documentElement.setAttribute('data-dshtb-on', '')
+  const heading = dom.document.createElement('h1')
+  heading.ownText = '隐藏与整理'
+  heading.getBoundingClientRect = () => ({ top: 12, left: 300, width: 220, height: 28 })
+  dom.body.appendChild(heading)
+  const env = environment({ innerWidth: 1400, protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({
+    position: 'static',
+    getPropertyValue: name => (name === '--dshtb-h' ? '42px' : ''),
+  })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  // Then the host owns the vertical — we do not set it, so its `!important` rule is the only one
+  assert.ok(bar.style.top === undefined || bar.style.top === '', `top must stay ours to not set, got ${bar.style.top}`)
+  assert.ok(bar.style.height === undefined || bar.style.height === '', `height must stay ours to not set, got ${bar.style.height}`)
+  // ... and the horizontal is the reader's own box, with nothing to avoid
+  const left = Number.parseInt(bar.style.left, 10)
+  const width = Number.parseInt(bar.style.width, 10)
+  assert.equal(width, 700)
+  assert.ok(left >= 25 && left + width <= 1400 - 25, `expected the bar inside the window, got ${left}+${width}`)
+  assert.equal(bar.getAttribute('data-dsh-url-router-overlap'), null)
+  // ... because no line was measured at all
+  assert.equal(env.window.__dshUrlRouter.reportLine(), null)
+})
+
+test('with a host strip the bar can be dragged to the window edge', () => {
+  // Given a bar in the host's strip
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  dom.document.documentElement.setAttribute('data-dshtb-on', '')
+  const env = environment({ innerWidth: 1400, protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static', getPropertyValue: () => '42px' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const grip = bar.querySelector('[data-dsh-url-router-grip="right"]')
+  const start = Number.parseInt(bar.style.width, 10)
+  const startX = Number.parseInt(bar.style.left, 10) + start
+  // When the right edge is dragged two hundred pixels out
+  grip.fire('pointerdown', { button: 0, clientX: startX, preventDefault() {} })
+  dom.document.fire('pointermove', { clientX: startX + 200 })
+  // Then it grows by exactly that: the strip is free, so no header control clips it
+  assert.equal(Number.parseInt(bar.style.width, 10), start + 200)
+})
+
 test('a plugin row reusing the titleRow class does not drag the bar down', () => {
   // Given a page whose own rows carry the same class the shell's header does, far below it
   const { dom } = openMacBar({ innerWidth: 1200 })
