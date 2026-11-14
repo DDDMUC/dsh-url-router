@@ -92,7 +92,7 @@ if (new URLSearchParams(location.search).get('platform') === 'windows') {
 </script>
 <script>
 // 宿主条（dsh-topbar）的形状：<html data-dshtb-on> + --dshtb-h，并用 !important 定住纵向
-if (['strip', 'strip-plain', 'strip-list', 'strip-band', 'strip-pin'].includes(new URLSearchParams(location.search).get('case'))) {
+if (['strip', 'strip-plain', 'strip-list', 'strip-band', 'strip-pin', 'strip-anchor'].includes(new URLSearchParams(location.search).get('case'))) {
   document.documentElement.setAttribute('data-dshtb-on', '')
   document.documentElement.style.setProperty('--dshtb-h', '42px')
   if (new URLSearchParams(location.search).get('case') === 'strip-plain') {
@@ -115,6 +115,19 @@ if (['strip', 'strip-plain', 'strip-list', 'strip-band', 'strip-pin'].includes(n
     band.setAttribute('data-dshtb', '')
     band.style.cssText = 'position:fixed;top:0;left:40px;right:40px;height:42px;pointer-events:none;background:rgba(120,170,240,.25)'
     document.addEventListener('DOMContentLoaded', () => document.body.appendChild(band))
+  }
+  if (new URLSearchParams(location.search).get('case') === 'strip-anchor') {
+    // 宿主给的锚点：位置语义在宿主那边定义，我只负责从这里开始
+    document.addEventListener('DOMContentLoaded', () => {
+      const band = document.createElement('div')
+      band.setAttribute('data-dshtb-strip', '')
+      band.style.cssText = 'position:fixed;top:0;left:0;right:0;height:42px;pointer-events:none'
+      const art = document.createElement('i')
+      art.setAttribute('data-dshtb-art-anchor', '')
+      art.style.cssText = 'position:absolute;top:8px;left:120px;width:2px;height:26px'
+      band.appendChild(art)
+      document.body.appendChild(band)
+    })
   }
   const host = document.createElement('style')
   const pinned = new URLSearchParams(location.search).get('case') === 'strip-pin'

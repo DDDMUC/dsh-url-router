@@ -5568,6 +5568,33 @@ test('inside a host strip the bar starts after the left column', () => {
   assert.ok(285 + width <= 1400 - 25, `expected the bar inside the strip, got 285+${width}`)
 })
 
+test('the host anchor decides where the bar starts, with no gap added', () => {
+  // Given a strip whose host marks the exact spot the address belongs (past the window buttons)
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  dom.document.documentElement.setAttribute('data-dshtb-on', '')
+  const band = dom.document.createElement('div')
+  band.setAttribute('data-dshtb-strip', '')
+  band.getBoundingClientRect = () => ({ top: 0, left: 0, width: 1400, height: 42 })
+  dom.body.appendChild(band)
+  const art = dom.document.createElement('i')
+  art.setAttribute('data-dshtb-art-anchor', '')
+  art.getBoundingClientRect = () => ({ top: 8, left: 120, width: 2, height: 26 })
+  dom.body.appendChild(art)
+  const env = environment({ innerWidth: 1400, protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static', getPropertyValue: () => '42px' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  // Then the bar begins exactly at the anchor — the anchor already carries its own gap
+  assert.equal(Number.parseInt(bar.style.left, 10), 120)
+  // ... and its length runs from there to the strip's own inset on the right
+  const width = Number.parseInt(bar.style.width, 10)
+  assert.ok(width >= 700, `expected the length from the anchor, got ${width}`)
+  assert.ok(120 + width <= 1400, `expected the bar inside the strip, got 120+${width}`)
+})
+
 test('a slot inside the strip is not mistaken for the strip', () => {
   // Given a strip whose own children carry the family name (`data-dshtb` on a slot, left of centre)
   const dom = fakeDom([])
