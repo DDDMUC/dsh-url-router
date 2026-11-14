@@ -5517,7 +5517,7 @@ test('a shoved strip takes the bar with it', () => {
   assert.equal(Number.parseInt(bar.style.left, 10), 165)
 })
 
-test('a strip wider than the app panel still stops at the panel', () => {
+test('the strip\'s own right edge is the ceiling, not the app panel', () => {
   // Given a strip that runs to the window's edge while the app panel ends earlier (the shell's
   // corner is the panel's own right edge)
   const dom = fakeDom([])
@@ -5527,6 +5527,11 @@ test('a strip wider than the app panel still stops at the panel', () => {
   corner.setAttribute('data-conversation-header-corner', '')
   corner.getBoundingClientRect = () => ({ top: 8, left: 1300, width: 40, height: 26 })
   dom.body.appendChild(corner)
+  // ... while the strip the host marks reaches further right
+  const band = dom.document.createElement('div')
+  band.setAttribute('data-dshtb', '')
+  band.getBoundingClientRect = () => ({ top: 0, left: 0, width: 1480, height: 42 })
+  dom.body.appendChild(band)
   // ... and the reader asked for a bar wider than the panel
   const storage = new Map([['dsh-url-router-bar-width', JSON.stringify({ v: 2, ratio: 0.9, shift: 0 })]])
   const env = environment({ innerWidth: 1480, protocol: 'dsh-app:', storage })
@@ -5537,8 +5542,9 @@ test('a strip wider than the app panel still stops at the panel', () => {
   const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
   const width = Number.parseInt(bar.style.width, 10)
   const left = Number.parseInt(bar.style.left, 10)
-  // Then the bar is placed inside the panel, not inside the wider strip
-  assert.ok(left + width <= 1300 - 20, `expected the bar inside the panel, got ${left}+${width}`)
+  // Then the bar may use the whole strip — the panel's header buttons are not the authority here
+  assert.ok(left + width > 1300, `expected the bar to reach the strip, got ${left}+${width}`)
+  assert.ok(left + width <= 1480 - 25, `expected the bar inside the strip, got ${left}+${width}`)
 })
 
 test('inside a host strip only the right edge is a handle', () => {
