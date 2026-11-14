@@ -5568,6 +5568,30 @@ test('inside a host strip the bar starts after the left column', () => {
   assert.ok(285 + width <= 1400 - 25, `expected the bar inside the strip, got 285+${width}`)
 })
 
+test('a slot inside the strip is not mistaken for the strip', () => {
+  // Given a strip whose own children carry the family name (`data-dshtb` on a slot, left of centre)
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  dom.document.documentElement.setAttribute('data-dshtb-on', '')
+  const slot = dom.document.createElement('div')
+  slot.setAttribute('data-dshtb', '')
+  slot.getBoundingClientRect = () => ({ top: 0, left: 130, width: 200, height: 42 })
+  dom.body.appendChild(slot)
+  // ... and the strip container itself, marked by its id
+  const band = dom.document.createElement('div')
+  band.id = 'dsh-topbar'
+  band.getBoundingClientRect = () => ({ top: 0, left: 0, width: 1400, height: 42 })
+  dom.body.appendChild(band)
+  const env = environment({ innerWidth: 1400, protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static', getPropertyValue: name => (name === '--dshtb-h' ? '42px' : '') })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  // Then the bar is laid out against the band, not against the slot inside it
+  assert.equal(Number.parseInt(bar.style.left, 10), 25)
+})
+
 test('inside a host strip only the right edge is a handle', () => {
   // Given a bar in the host's strip
   const dom = fakeDom([])

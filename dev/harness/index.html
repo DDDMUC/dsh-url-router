@@ -92,7 +92,7 @@ if (new URLSearchParams(location.search).get('platform') === 'windows') {
 </script>
 <script>
 // 宿主条（dsh-topbar）的形状：<html data-dshtb-on> + --dshtb-h，并用 !important 定住纵向
-if (['strip', 'strip-plain', 'strip-list', 'strip-band'].includes(new URLSearchParams(location.search).get('case'))) {
+if (['strip', 'strip-plain', 'strip-list', 'strip-band', 'strip-pin'].includes(new URLSearchParams(location.search).get('case'))) {
   document.documentElement.setAttribute('data-dshtb-on', '')
   document.documentElement.style.setProperty('--dshtb-h', '42px')
   if (new URLSearchParams(location.search).get('case') === 'strip-plain') {
@@ -117,7 +117,11 @@ if (['strip', 'strip-plain', 'strip-list', 'strip-band'].includes(new URLSearchP
     document.addEventListener('DOMContentLoaded', () => document.body.appendChild(band))
   }
   const host = document.createElement('style')
-  host.textContent = '#dsh-url-router-titlebar[data-dsh-url-router-platform="mac"]{top:8px !important;height:26px !important}'
+  const pinned = new URLSearchParams(location.search).get('case') === 'strip-pin'
+  host.textContent = pinned
+    // 宿主把 left 钉成 700：框的宽度必须按 700 去算，不能还按自己的 25 算
+    ? '#dsh-url-router-titlebar[data-dsh-url-router-platform="mac"]{top:8px !important;height:26px !important;left:700px !important}'
+    : '#dsh-url-router-titlebar[data-dsh-url-router-platform="mac"]{top:8px !important;height:26px !important}'
   document.head.appendChild(host)
 }
 </script>
@@ -274,6 +278,12 @@ setTimeout(() => {
       const input = node?.querySelector('input')?.getBoundingClientRect()
       report.textContent += `\nSTRIP field=${input ? `${Math.round(input.width)}` : 'none'}`
     }, 600)
+  } else if (CASE === 'strip-pin') {
+    setTimeout(() => {
+      const node = document.getElementById('dsh-url-router-titlebar')
+      const box = node?.getBoundingClientRect()
+      report.textContent += `\nPIN rect=${box ? `${Math.round(box.left)}..${Math.round(box.right)}` : 'none'} inlineLeft=${JSON.stringify(node?.style.left ?? null)} win=${window.innerWidth}`
+    }, 700)
   } else if (CASE === 'strip-band') {
     setTimeout(() => {
       const node = document.getElementById('dsh-url-router-titlebar')
