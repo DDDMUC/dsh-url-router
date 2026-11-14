@@ -91,54 +91,6 @@ if (new URLSearchParams(location.search).get('platform') === 'windows') {
 }
 </script>
 <script>
-// 宿主条（dsh-topbar）的形状：<html data-dshtb-on> + --dshtb-h，并用 !important 定住纵向
-if (['strip', 'strip-plain', 'strip-list', 'strip-band', 'strip-pin', 'strip-anchor'].includes(new URLSearchParams(location.search).get('case'))) {
-  document.documentElement.setAttribute('data-dshtb-on', '')
-  document.documentElement.style.setProperty('--dshtb-h', '42px')
-  if (new URLSearchParams(location.search).get('case') === 'strip-plain') {
-    // 宿主只打了标记、没写纵向规则：bar 必须自己落进条里，不能留一条空带
-    document.documentElement.setAttribute('data-dshtb-on', '')
-    document.documentElement.style.setProperty('--dshtb-h', '42px')
-  }
-  if (new URLSearchParams(location.search).get('case') === 'strip-list') {
-    // 宽条 + 长链接：下拉框不许越出窗口，行内的字要自己省略
-    localStorage.setItem('dsh-url-router-bar-width', JSON.stringify({ v: 2, ratio: 0.88, shift: 0 }))
-    localStorage.setItem('dsh-url-router-recent', JSON.stringify([
-      { hash: '#/workspace/Default%20Project/session/session-cb4e089a-3b2c-42ad-af6e-0c1a5f0b9d21', source: 'visit', at: 3 },
-      { hash: '#/workspace/Default%20Project/session/session-e291daf8-2850-4460-b3e6-77a1c2f0d3b4', source: 'visit', at: 2 },
-      { hash: '#/panel/plugins/dsh-hide-new-session/hide-new-session', source: 'visit', at: 1 },
-    ]))
-  }
-  if (new URLSearchParams(location.search).get('case') === 'strip-band') {
-    // 宿主条自己的元素（带 data-dshtb）比窗口窄，而且会被东西顶走
-    const band = document.createElement('div')
-    band.setAttribute('data-dshtb', '')
-    band.style.cssText = 'position:fixed;top:0;left:40px;right:40px;height:42px;pointer-events:none;background:rgba(120,170,240,.25)'
-    document.addEventListener('DOMContentLoaded', () => document.body.appendChild(band))
-  }
-  if (new URLSearchParams(location.search).get('case') === 'strip-anchor') {
-    // 宿主给的锚点：位置语义在宿主那边定义，我只负责从这里开始
-    document.addEventListener('DOMContentLoaded', () => {
-      const band = document.createElement('div')
-      band.setAttribute('data-dshtb-strip', '')
-      band.style.cssText = 'position:fixed;top:0;left:0;right:0;height:42px;pointer-events:none'
-      const art = document.createElement('i')
-      art.setAttribute('data-dshtb-art-anchor', '')
-      art.style.cssText = 'position:absolute;top:8px;left:120px;width:2px;height:26px'
-      band.appendChild(art)
-      document.body.appendChild(band)
-    })
-  }
-  const host = document.createElement('style')
-  const pinned = new URLSearchParams(location.search).get('case') === 'strip-pin'
-  host.textContent = pinned
-    // 宿主把 left 钉成 700：框的宽度必须按 700 去算，不能还按自己的 25 算
-    ? '#dsh-url-router-titlebar[data-dsh-url-router-platform="mac"]{top:8px !important;height:26px !important;left:700px !important}'
-    : '#dsh-url-router-titlebar[data-dsh-url-router-platform="mac"]{top:8px !important;height:26px !important}'
-  document.head.appendChild(host)
-}
-</script>
-<script>
 // 复现"记下的长度很短 + 值很长"：真机上那条 228px 的框
 if (new URLSearchParams(location.search).get('case') === 'narrow') {
   localStorage.setItem('dsh-url-router-bar-width', JSON.stringify({ v: 2, ratio: Number(new URLSearchParams(location.search).get('ratio') || 0.18), shift: 0 }))
@@ -280,42 +232,6 @@ setTimeout(() => {
       report.textContent += `\n@340,24 = ${dump(340, 24)}`
       report.textContent += `\n@340,40 = ${dump(340, 40)}`
     }, 800)
-  } else if (CASE === 'strip') {
-    // 条是空的：不量线、不避字，纵向交给宿主
-    setTimeout(() => {
-      const node = document.getElementById('dsh-url-router-titlebar')
-      const box = node?.getBoundingClientRect()
-      report.textContent += `\nSTRIP inline top=${JSON.stringify(node?.style.top ?? null)} height=${JSON.stringify(node?.style.height ?? null)}`
-      report.textContent += `\nSTRIP rect=${box ? `${Math.round(box.left)},${Math.round(box.top)} ${Math.round(box.width)}x${Math.round(box.height)}` : 'none'}`
-      const field = node?.querySelector('input')
-      const input = node?.querySelector('input')?.getBoundingClientRect()
-      report.textContent += `\nSTRIP field=${input ? `${Math.round(input.width)}` : 'none'}`
-    }, 600)
-  } else if (CASE === 'strip-pin') {
-    setTimeout(() => {
-      const node = document.getElementById('dsh-url-router-titlebar')
-      const box = node?.getBoundingClientRect()
-      report.textContent += `\nPIN rect=${box ? `${Math.round(box.left)}..${Math.round(box.right)}` : 'none'} inlineLeft=${JSON.stringify(node?.style.left ?? null)} win=${window.innerWidth}`
-    }, 700)
-  } else if (CASE === 'strip-band') {
-    setTimeout(() => {
-      const node = document.getElementById('dsh-url-router-titlebar')
-      report.textContent += `\nBAND before left=${Math.round(node.getBoundingClientRect().left)}`
-      const band = document.querySelector('[data-dshtb]')
-      band.style.left = '140px'
-      setTimeout(() => {
-        report.textContent += `\nBAND after  left=${Math.round(document.getElementById('dsh-url-router-titlebar').getBoundingClientRect().left)}`
-      }, 400)
-    }, 500)
-  } else if (CASE === 'strip-list') {
-    setTimeout(() => {
-      const field = document.querySelector('#dsh-url-router-titlebar input')
-      field.focus()
-      const list = document.querySelector('[data-dsh-url-router-recent]')
-      const box = list?.getBoundingClientRect()
-      const bar = document.getElementById('dsh-url-router-titlebar')?.getBoundingClientRect()
-      report.textContent += `\nLIST bar=${bar ? `${Math.round(bar.left)}..${Math.round(bar.right)}` : 'none'} list=${box ? `${Math.round(box.left)}..${Math.round(box.right)}` : 'none'} win=${window.innerWidth}`
-    }, 600)
   } else if (CASE === 'squeezed') {
     // 真机那种形状：标题的盒子被挤窄了，字却照画出去 —— 框不能停在盒子后面
     const header = document.querySelector('.headerRow')
