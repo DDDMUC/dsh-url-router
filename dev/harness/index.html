@@ -92,9 +92,14 @@ if (new URLSearchParams(location.search).get('platform') === 'windows') {
 </script>
 <script>
 // 宿主条（dsh-topbar）的形状：<html data-dshtb-on> + --dshtb-h，并用 !important 定住纵向
-if (new URLSearchParams(location.search).get('case') === 'strip') {
+if (['strip', 'strip-plain'].includes(new URLSearchParams(location.search).get('case'))) {
   document.documentElement.setAttribute('data-dshtb-on', '')
   document.documentElement.style.setProperty('--dshtb-h', '42px')
+  if (new URLSearchParams(location.search).get('case') === 'strip-plain') {
+    // 宿主只打了标记、没写纵向规则：bar 必须自己落进条里，不能留一条空带
+    document.documentElement.setAttribute('data-dshtb-on', '')
+    document.documentElement.style.setProperty('--dshtb-h', '42px')
+  }
   const host = document.createElement('style')
   host.textContent = '#dsh-url-router-titlebar[data-dsh-url-router-platform="mac"]{top:8px !important;height:26px !important}'
   document.head.appendChild(host)

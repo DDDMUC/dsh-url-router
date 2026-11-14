@@ -5478,8 +5478,10 @@ test('inside a host strip the bar only chooses its own width', () => {
   open(env)
   const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
   // Then the host owns the vertical — we do not set it, so its `!important` rule is the only one
-  assert.ok(bar.style.top === undefined || bar.style.top === '', `top must stay ours to not set, got ${bar.style.top}`)
-  assert.ok(bar.style.height === undefined || bar.style.height === '', `height must stay ours to not set, got ${bar.style.height}`)
+  // The vertical is centred in the strip: a host rule with `!important` still wins, but without one
+  // the bar must not sit below the strip with a band of empty space above it
+  assert.equal(bar.style.top, '8px')
+  assert.equal(bar.style.height, '26px')
   // ... and the horizontal is the reader's own box, with nothing to avoid
   const left = Number.parseInt(bar.style.left, 10)
   const width = Number.parseInt(bar.style.width, 10)
