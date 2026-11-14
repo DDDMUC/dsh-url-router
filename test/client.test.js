@@ -5519,7 +5519,7 @@ test('inside a host strip only the right edge is a handle', () => {
   assert.equal(Number.parseInt(bar.style.left, 10), left)
 })
 
-test('with a host strip the bar can be dragged to the window edge', () => {
+test('with a host strip the bar stops at the temporary ceiling', () => {
   // Given a bar in the host's strip
   const dom = fakeDom([])
   dom.body.setAttribute('data-platform', 'darwin')
@@ -5536,8 +5536,9 @@ test('with a host strip the bar can be dragged to the window edge', () => {
   // When the right edge is dragged two hundred pixels out
   grip.fire('pointerdown', { button: 0, clientX: startX, preventDefault() {} })
   dom.document.fire('pointermove', { clientX: startX + 200 })
-  // Then it grows by exactly that: the strip is free, so no header control clips it
-  assert.equal(Number.parseInt(bar.style.width, 10), start + 200)
+  // Then it stops at the ceiling — 700 for now, a single constant to lift later — rather than
+  // running to the window edge
+  assert.equal(Number.parseInt(bar.style.width, 10), 700)
 })
 
 test('a plugin row reusing the titleRow class does not drag the bar down', () => {
