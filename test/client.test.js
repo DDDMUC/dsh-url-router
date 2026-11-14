@@ -5486,10 +5486,37 @@ test('inside a host strip the bar only chooses its own width', () => {
   const left = Number.parseInt(bar.style.left, 10)
   const width = Number.parseInt(bar.style.width, 10)
   assert.equal(width, 700)
-  assert.ok(left >= 25 && left + width <= 1400 - 25, `expected the bar inside the window, got ${left}+${width}`)
+  assert.equal(left, 25, 'the left edge is pinned to the strip inset')
+  assert.ok(left + width <= 1400 - 25, `expected the bar inside the window, got ${left}+${width}`)
   assert.equal(bar.getAttribute('data-dsh-url-router-overlap'), null)
   // ... because no line was measured at all
   assert.equal(env.window.__dshUrlRouter.reportLine(), null)
+})
+
+test('inside a host strip only the right edge is a handle', () => {
+  // Given a bar in the host's strip
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  dom.document.documentElement.setAttribute('data-dshtb-on', '')
+  const env = environment({ innerWidth: 1400, protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static', getPropertyValue: () => '42px' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  // Then the bar says so, and the stylesheet hides the left handle
+  assert.notEqual(bar.getAttribute('data-dsh-url-router-strip'), null)
+  const sheets = [...dom.document.head.children]
+    .filter(node => node.tagName === 'STYLE')
+    .map(node => String(node.textContent ?? ''))
+    .join('\n')
+  assert.match(sheets, /\[data-dsh-url-router-strip\] \[data-dsh-url-router-grip="left"\]\{display:none\}/)
+  // ... and dragging that edge does nothing at all
+  const left = Number.parseInt(bar.style.left, 10)
+  const grip = bar.querySelector('[data-dsh-url-router-grip="left"]')
+  grip.fire('pointerdown', { button: 0, clientX: left, preventDefault() {} })
+  dom.document.fire('pointermove', { clientX: left + 120 })
+  assert.equal(Number.parseInt(bar.style.left, 10), left)
 })
 
 test('with a host strip the bar can be dragged to the window edge', () => {
