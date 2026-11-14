@@ -5232,6 +5232,25 @@ test('the bar is pinned to one line on every screen, like the power button', () 
   assert.equal(anchor.top, 11)
 })
 
+test('the box is drawn while an edge is held, and while a handle is hovered', () => {
+  // Given a desktop window with the bar drawn
+  const { dom } = openMacBar({ innerWidth: 1200 })
+  const sheets = [...dom.document.head.children]
+    .filter(node => node.tagName === 'STYLE')
+    .map(node => String(node.textContent ?? ''))
+    .join('\n')
+  // Then holding an edge draws the box itself — a transparent field gives no sense of where the
+  // edge will land (asked 2026-11-14)
+  const dragging = sheets.slice(sheets.indexOf('[data-dsh-url-router-resizing]{'))
+  assert.match(dragging.slice(0, 240), /outline:1px solid rgba\(127,127,127,\.85\)/)
+  assert.match(dragging.slice(0, 400), /input\{border-color:rgba\(127,127,127,\.5\)/)
+  // ... and hovering a handle outlines it too, so the handle reads as this box's edge
+  assert.ok(
+    sheets.includes(':has([data-dsh-url-router-grip]:hover){outline:1px dashed rgba(127,127,127,.5)'),
+    'the handle hover must outline the box',
+  )
+})
+
 test('the field cannot be capped by an app-wide input rule', () => {
   // Given a desktop window with the bar drawn
   const { dom } = openMacBar({ innerWidth: 1200 })
