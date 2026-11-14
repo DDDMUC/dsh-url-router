@@ -5547,6 +5547,27 @@ test('the strip\'s own right edge is the ceiling, not the app panel', () => {
   assert.ok(left + width <= 1480 - 25, `expected the bar inside the strip, got ${left}+${width}`)
 })
 
+test('inside a host strip the bar starts after the left column', () => {
+  // Given a strip that runs the whole window while the sidebar takes the left of it
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  dom.document.documentElement.setAttribute('data-dshtb-on', '')
+  const side = dom.document.createElement('aside')
+  side.getBoundingClientRect = () => ({ top: 60, left: 0, width: 260, height: 600 })
+  dom.body.appendChild(side)
+  const env = environment({ innerWidth: 1400, protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static', getPropertyValue: () => '42px' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  // Then the bar begins where the content begins, not at the window's edge
+  assert.equal(Number.parseInt(bar.style.left, 10), 285)
+  // ... and its length is measured from there
+  const width = Number.parseInt(bar.style.width, 10)
+  assert.ok(285 + width <= 1400 - 25, `expected the bar inside the strip, got 285+${width}`)
+})
+
 test('inside a host strip only the right edge is a handle', () => {
   // Given a bar in the host's strip
   const dom = fakeDom([])
