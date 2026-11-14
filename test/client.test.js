@@ -5493,6 +5493,30 @@ test('inside a host strip the bar only chooses its own width', () => {
   assert.equal(env.window.__dshUrlRouter.reportLine(), null)
 })
 
+test('a shoved strip takes the bar with it', () => {
+  // Given a strip the host marks, sitting a little in from the window's left
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  dom.document.documentElement.setAttribute('data-dshtb-on', '')
+  const band = dom.document.createElement('div')
+  band.setAttribute('data-dshtb', '')
+  band.getBoundingClientRect = () => ({ top: 0, left: 40, width: 1160, height: 42 })
+  dom.body.appendChild(band)
+  const env = environment({ innerWidth: 1400, protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static', getPropertyValue: () => '42px' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  // Then the bar is laid out inside the band, not against the window
+  assert.equal(Number.parseInt(bar.style.left, 10), 65)
+  // When something shoves the band a hundred pixels right
+  band.getBoundingClientRect = () => ({ top: 0, left: 140, width: 1060, height: 42 })
+  triggerObservers(dom)
+  // Then the bar moves with it
+  assert.equal(Number.parseInt(bar.style.left, 10), 165)
+})
+
 test('inside a host strip only the right edge is a handle', () => {
   // Given a bar in the host's strip
   const dom = fakeDom([])
@@ -5519,7 +5543,7 @@ test('inside a host strip only the right edge is a handle', () => {
   assert.equal(Number.parseInt(bar.style.left, 10), left)
 })
 
-test('with a host strip the bar stops at the temporary ceiling', () => {
+test('with a host strip the bar can be dragged to the window edge', () => {
   // Given a bar in the host's strip
   const dom = fakeDom([])
   dom.body.setAttribute('data-platform', 'darwin')
@@ -5536,9 +5560,8 @@ test('with a host strip the bar stops at the temporary ceiling', () => {
   // When the right edge is dragged two hundred pixels out
   grip.fire('pointerdown', { button: 0, clientX: startX, preventDefault() {} })
   dom.document.fire('pointermove', { clientX: startX + 200 })
-  // Then it stops at the ceiling — 700 for now, a single constant to lift later — rather than
-  // running to the window edge
-  assert.equal(Number.parseInt(bar.style.width, 10), 700)
+  // Then it grows by exactly that: the strip is blank, so nothing but the window stops it
+  assert.equal(Number.parseInt(bar.style.width, 10), start + 200)
 })
 
 test('a plugin row reusing the titleRow class does not drag the bar down', () => {

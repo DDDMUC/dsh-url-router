@@ -92,7 +92,7 @@ if (new URLSearchParams(location.search).get('platform') === 'windows') {
 </script>
 <script>
 // 宿主条（dsh-topbar）的形状：<html data-dshtb-on> + --dshtb-h，并用 !important 定住纵向
-if (['strip', 'strip-plain', 'strip-list'].includes(new URLSearchParams(location.search).get('case'))) {
+if (['strip', 'strip-plain', 'strip-list', 'strip-band'].includes(new URLSearchParams(location.search).get('case'))) {
   document.documentElement.setAttribute('data-dshtb-on', '')
   document.documentElement.style.setProperty('--dshtb-h', '42px')
   if (new URLSearchParams(location.search).get('case') === 'strip-plain') {
@@ -108,6 +108,13 @@ if (['strip', 'strip-plain', 'strip-list'].includes(new URLSearchParams(location
       { hash: '#/workspace/Default%20Project/session/session-e291daf8-2850-4460-b3e6-77a1c2f0d3b4', source: 'visit', at: 2 },
       { hash: '#/panel/plugins/dsh-hide-new-session/hide-new-session', source: 'visit', at: 1 },
     ]))
+  }
+  if (new URLSearchParams(location.search).get('case') === 'strip-band') {
+    // 宿主条自己的元素（带 data-dshtb）比窗口窄，而且会被东西顶走
+    const band = document.createElement('div')
+    band.setAttribute('data-dshtb', '')
+    band.style.cssText = 'position:fixed;top:0;left:40px;right:40px;height:42px;pointer-events:none;background:rgba(120,170,240,.25)'
+    document.addEventListener('DOMContentLoaded', () => document.body.appendChild(band))
   }
   const host = document.createElement('style')
   host.textContent = '#dsh-url-router-titlebar[data-dsh-url-router-platform="mac"]{top:8px !important;height:26px !important}'
@@ -267,6 +274,16 @@ setTimeout(() => {
       const input = node?.querySelector('input')?.getBoundingClientRect()
       report.textContent += `\nSTRIP field=${input ? `${Math.round(input.width)}` : 'none'}`
     }, 600)
+  } else if (CASE === 'strip-band') {
+    setTimeout(() => {
+      const node = document.getElementById('dsh-url-router-titlebar')
+      report.textContent += `\nBAND before left=${Math.round(node.getBoundingClientRect().left)}`
+      const band = document.querySelector('[data-dshtb]')
+      band.style.left = '140px'
+      setTimeout(() => {
+        report.textContent += `\nBAND after  left=${Math.round(document.getElementById('dsh-url-router-titlebar').getBoundingClientRect().left)}`
+      }, 400)
+    }, 500)
   } else if (CASE === 'strip-list') {
     setTimeout(() => {
       const field = document.querySelector('#dsh-url-router-titlebar input')
