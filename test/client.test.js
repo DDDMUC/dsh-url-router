@@ -5232,6 +5232,34 @@ test('the bar is pinned to one line on every screen, like the power button', () 
   assert.equal(anchor.top, 11)
 })
 
+test('a drag writes its box once per frame, not once per pointer event', () => {
+  // Given a bar with animation frames that run only when asked
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  const frames = []
+  const flush = () => { while (frames.length > 0) frames.shift()() }
+  const env = environment({ innerWidth: 1440, protocol: 'dsh-app:' })
+  env.window.document = dom.document
+  env.window.MutationObserver = dom.FakeObserver
+  env.window.requestAnimationFrame = callback => frames.push(callback)
+  env.window.cancelAnimationFrame = () => {}
+  open(env)
+  flush()
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const start = Number.parseInt(bar.style.width, 10)
+  const grip = bar.querySelector('[data-dsh-url-router-grip="right"]')
+  // When two moves arrive inside one frame
+  grip.fire('pointerdown', { button: 0, clientX: 800, buttons: 1, preventDefault() {} })
+  dom.document.fire('pointermove', { clientX: 830, buttons: 1 })
+  dom.document.fire('pointermove', { clientX: 860, buttons: 1 })
+  // Then nothing is written yet ...
+  const before = Number.parseInt(bar.style.width, 10)
+  // ... and the frame that was asked for carries the last position
+  assert.equal(before, start, 'no write before the frame runs')
+  flush()
+  assert.equal(Number.parseInt(bar.style.width, 10), start + 60, 'the frame writes the last position')
+})
+
 test('the box is drawn while an edge is held, and while a handle is hovered', () => {
   // Given a desktop window with the bar drawn
   const { dom } = openMacBar({ innerWidth: 1200 })
@@ -5242,8 +5270,8 @@ test('the box is drawn while an edge is held, and while a handle is hovered', ()
   // Then holding an edge draws the box itself — a transparent field gives no sense of where the
   // edge will land (asked 2026-11-14)
   const dragging = sheets.slice(sheets.indexOf('[data-dsh-url-router-resizing]{'))
-  assert.match(dragging.slice(0, 240), /outline:1px solid rgba\(127,127,127,\.85\)/)
-  assert.match(dragging.slice(0, 400), /input\{border-color:rgba\(127,127,127,\.5\)/)
+  assert.match(dragging, /outline:1px solid rgba\(127,127,127,\.85\)/)
+  assert.match(dragging, /input\{border-color:rgba\(127,127,127,\.5\)/)
   // ... and hovering a handle outlines it too, so the handle reads as this box's edge
   assert.ok(
     sheets.includes(':has([data-dsh-url-router-grip]:hover){outline:1px dashed rgba(127,127,127,.5)'),
