@@ -92,13 +92,22 @@ if (new URLSearchParams(location.search).get('platform') === 'windows') {
 </script>
 <script>
 // 宿主条（dsh-topbar）的形状：<html data-dshtb-on> + --dshtb-h，并用 !important 定住纵向
-if (['strip', 'strip-plain'].includes(new URLSearchParams(location.search).get('case'))) {
+if (['strip', 'strip-plain', 'strip-list'].includes(new URLSearchParams(location.search).get('case'))) {
   document.documentElement.setAttribute('data-dshtb-on', '')
   document.documentElement.style.setProperty('--dshtb-h', '42px')
   if (new URLSearchParams(location.search).get('case') === 'strip-plain') {
     // 宿主只打了标记、没写纵向规则：bar 必须自己落进条里，不能留一条空带
     document.documentElement.setAttribute('data-dshtb-on', '')
     document.documentElement.style.setProperty('--dshtb-h', '42px')
+  }
+  if (new URLSearchParams(location.search).get('case') === 'strip-list') {
+    // 宽条 + 长链接：下拉框不许越出窗口，行内的字要自己省略
+    localStorage.setItem('dsh-url-router-bar-width', JSON.stringify({ v: 2, ratio: 0.88, shift: 0 }))
+    localStorage.setItem('dsh-url-router-recent', JSON.stringify([
+      { hash: '#/workspace/Default%20Project/session/session-cb4e089a-3b2c-42ad-af6e-0c1a5f0b9d21', source: 'visit', at: 3 },
+      { hash: '#/workspace/Default%20Project/session/session-e291daf8-2850-4460-b3e6-77a1c2f0d3b4', source: 'visit', at: 2 },
+      { hash: '#/panel/plugins/dsh-hide-new-session/hide-new-session', source: 'visit', at: 1 },
+    ]))
   }
   const host = document.createElement('style')
   host.textContent = '#dsh-url-router-titlebar[data-dsh-url-router-platform="mac"]{top:8px !important;height:26px !important}'
@@ -257,6 +266,15 @@ setTimeout(() => {
       const field = node?.querySelector('input')
       const input = node?.querySelector('input')?.getBoundingClientRect()
       report.textContent += `\nSTRIP field=${input ? `${Math.round(input.width)}` : 'none'}`
+    }, 600)
+  } else if (CASE === 'strip-list') {
+    setTimeout(() => {
+      const field = document.querySelector('#dsh-url-router-titlebar input')
+      field.focus()
+      const list = document.querySelector('[data-dsh-url-router-recent]')
+      const box = list?.getBoundingClientRect()
+      const bar = document.getElementById('dsh-url-router-titlebar')?.getBoundingClientRect()
+      report.textContent += `\nLIST bar=${bar ? `${Math.round(bar.left)}..${Math.round(bar.right)}` : 'none'} list=${box ? `${Math.round(box.left)}..${Math.round(box.right)}` : 'none'} win=${window.innerWidth}`
     }, 600)
   } else if (CASE === 'squeezed') {
     // 真机那种形状：标题的盒子被挤窄了，字却照画出去 —— 框不能停在盒子后面
