@@ -5517,6 +5517,30 @@ test('a shoved strip takes the bar with it', () => {
   assert.equal(Number.parseInt(bar.style.left, 10), 165)
 })
 
+test('a strip wider than the app panel still stops at the panel', () => {
+  // Given a strip that runs to the window's edge while the app panel ends earlier (the shell's
+  // corner is the panel's own right edge)
+  const dom = fakeDom([])
+  dom.body.setAttribute('data-platform', 'darwin')
+  dom.document.documentElement.setAttribute('data-dshtb-on', '')
+  const corner = dom.document.createElement('div')
+  corner.setAttribute('data-conversation-header-corner', '')
+  corner.getBoundingClientRect = () => ({ top: 8, left: 1300, width: 40, height: 26 })
+  dom.body.appendChild(corner)
+  // ... and the reader asked for a bar wider than the panel
+  const storage = new Map([['dsh-url-router-bar-width', JSON.stringify({ v: 2, ratio: 0.9, shift: 0 })]])
+  const env = environment({ innerWidth: 1480, protocol: 'dsh-app:', storage })
+  env.window.document = dom.document
+  env.window.getComputedStyle = () => ({ position: 'static', getPropertyValue: () => '42px' })
+  env.window.MutationObserver = dom.FakeObserver
+  open(env)
+  const bar = dom.body.querySelector('[data-dsh-part="url-router-address-bar"]')
+  const width = Number.parseInt(bar.style.width, 10)
+  const left = Number.parseInt(bar.style.left, 10)
+  // Then the bar is placed inside the panel, not inside the wider strip
+  assert.ok(left + width <= 1300 - 20, `expected the bar inside the panel, got ${left}+${width}`)
+})
+
 test('inside a host strip only the right edge is a handle', () => {
   // Given a bar in the host's strip
   const dom = fakeDom([])
