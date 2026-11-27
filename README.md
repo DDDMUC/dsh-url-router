@@ -1,6 +1,6 @@
 # dsh-url-router
 
-**DSH 地址栏路由插件（Web 与 Windows 桌面版）—— 每个界面都有自己的链接：地址栏写着屏幕上的东西，链接点开就是那个界面。** 给 DeepSeek Harness (dsh) 补上"可寻址"：点侧栏会话，地址栏变成 `#/session/<id>`；点插件面板，变成 `#/panel/plugins`；点进某个插件、某个组件、某个任务，地址栏跟着一起走。把这条链接贴到新标签页、或者对着侧栏任意一行右键，就是浏览器自己的行为——无需复制按钮、无需自定义菜单。桌面版（Windows）自己没有地址栏，本插件就把它画在标题栏那条空白里。
+**DSH 地址栏路由插件（Web 与 Windows 桌面版）—— 每个界面都有自己的链接：地址栏写着屏幕上的东西，链接点开就是那个界面。** 给 DeepSeek Harness (dsh) 补上"可寻址"：点侧栏会话，地址栏变成 `#/session/<id>`；点插件面板，变成 `#/panel/plugins`；点进某个插件、某个组件、某个任务，地址栏跟着一起走。把这条链接贴到新标签页就能打开；侧栏会话行右键进的是产品自己的会话菜单，菜单里有一项「复制链接」。桌面版（Windows）自己没有地址栏，本插件就把它画在标题栏那条空白里。
 
 它是**地址栏的唯一写者**：只改 URL 的 fragment，路径与查询串（例如启动时的 `?token=…`）原样保留；只用 `replaceState`，浏览面板不会往后退栈里塞历史。**只有浏览器半区**——零依赖、无宿主路由、无遥测。
 
@@ -55,9 +55,10 @@ dsh plugin --profile web add "link:/path/to/dsh-url-router"
 
 侧栏的会话行、插件面板的列表行（已安装组与官方组）都是**整行覆盖的透明真锚点**：
 
-- **右键** → 浏览器原生菜单（在新标签页中打开 / 复制链接 / 另存为）
-- **中键、Cmd/Ctrl + 单击** → 原生新标签页
+- **右键** → 产品自己的行菜单（会话行的菜单里有一项「复制链接」，复制的是这个界面的完整 URL；桌面窗口没有可分享的 origin，复制的是 fragment）
+- **中键、Cmd/Ctrl + 单击** → 原生新标签页（浏览器里成立；桌面窗口没有标签页）
 - **左键单击** → 在本页打开（`preventDefault` 后调官方导航，不新增历史记录）
+- **双击会话标题** → 产品的重命名对话框（标题被抬到锚点之上，两条手势互不吞没）
 
 ### 桌面版的地址栏
 
@@ -152,7 +153,7 @@ macOS 的标题栏是**原生**的（左边红黄绿三个灯），页面里没�
 
 ## English
 
-**A URL router for the DSH Web GUI — every surface gets its own link.** Click a conversation and the address bar becomes `#/session/<id>`; click a panel (Plugins, Task Board, …) and it becomes `#/panel/<panelId>`; walk into a plugin, a component, or a task and the bar follows. Paste the link into another tab, or right-click any sidebar row for the browser's own "open in new tab / copy link".
+**A URL router for the DSH Web GUI — every surface gets its own link.** Click a conversation and the address bar becomes `#/session/<id>`; click a panel (Plugins, Task Board, …) and it becomes `#/panel/<panelId>`; walk into a plugin, a component, or a task and the bar follows. Paste the link into another tab to open it; right-clicking a conversation row opens the product's own session menu, which carries a "copy link" entry.
 
 It is the **single writer of the fragment**: path and query string (a launch `?token=…`) are never touched, and it only ever calls `replaceState`. **Browser half only** — no dependencies, no host route, no telemetry.
 
@@ -186,7 +187,7 @@ A kind it does not know is left alone with a single diagnostic (a fragment has e
 
 ### Every row is a real link
 
-Conversation rows and both plugin-list groups carry a transparent full-row anchor: right-click gives the native menu, middle/Cmd-click opens a native new tab, and a plain left click navigates in place without adding a history entry.
+Conversation rows and both plugin-list groups carry a transparent full-row anchor: middle/Cmd-click opens a native new tab (in a browser), a plain left click navigates in place without adding a history entry, and the product's row menu carries a "copy link" entry (the desktop window copies the bare fragment).
 
 ### The desktop address bar
 

@@ -304,7 +304,7 @@ function environment(options = {}) {
   }
   const retained = []
   const released = []
-  const services = options.services ?? { sessions, workspaces, uiWorkspace }
+  const services = { sessions, workspaces, uiWorkspace, ...(options.services ?? {}) }
     const slots = {
       entries(key) {
         // The plugin reads four slot keys: the conversation's views, the sidebar's panel rows, the
@@ -323,6 +323,15 @@ function environment(options = {}) {
     effect(fn) {
       disposers.push(fn())
     },
+    // The router asks for the product's menu service through `ctx.inject`; a caller
+    // supplies one to watch the session copy-link contribution.
+    ...(options.inject === undefined ? {} : {
+      inject(deps, callback) {
+        const child = { contextMenus: options.inject, effect: callback => callback() }
+        callback(child)
+        return { dispose() {} }
+      },
+    }),
     get(name) {
       if (name === 'layout') return options.layout === null ? undefined : (options.layout ?? layout)
       if (name === 'sidebarRightTabs') return options.sidebarRightTabs
@@ -6465,4 +6474,86 @@ test('the red border is taken back on its own, so one failure cannot leave the b
   // and now it is red forever")
   assert.equal(bar.getAttribute('data-dsh-url-router-state'), 'idle')
   assert.doesNotMatch(input.value, /打不开/)
+})
+
+test('the conversation title is lifted above the row overlay, so the product rename keeps its presses', () => {
+  // Given a linked row whose title span carries the product's own class suffix
+  const { dom } = openWithDom(['session:session-abc'])
+  const styles = dom.head.children.filter(node => node.id === 'dsh-url-router-style')
+  // Then the one stylesheet lifts the title (reportedly the double-click rename went dead:
+  // the overlay swallowed the press before the product's two gates ever saw it)
+  assert.equal(styles.length, 1)
+  assert.match(styles[0].textContent, /\[data-row-key\^="session:"\] \[class\*="_title"\]\{position:relative;z-index:4\}/)
+})
+
+test('a browser row anchor keeps the native new-tab promise, and a desktop one does not', () => {
+  // Given the same conversation row on a plain page and in the Windows shell
+  const web = openWithDom(['session:session-abc'])
+  const desktop = openWithTitlebar(['session:session-abc'], { menuWidth: 120 })
+  const webAnchor = web.dom.rows[0].querySelector('[data-dsh-part="url-router-link"]')
+  const desktopAnchor = desktop.dom.rows[0].querySelector('[data-dsh-part="url-router-link"]')
+  // Then a browser keeps the native gestures ...
+  assert.equal(webAnchor.getAttribute('target'), '_blank')
+  assert.equal(webAnchor.getAttribute('rel'), 'noreferrer')
+  assert.match(webAnchor.getAttribute('title') ?? '', /复制链接/)
+  assert.match(webAnchor.getAttribute('title') ?? '', /中键|middle/)
+  // ... while the shell has no tabs to promise: no target, and the tooltip drops the claim
+  assert.equal(desktopAnchor.getAttribute('target'), null)
+  assert.equal(desktopAnchor.getAttribute('rel'), null)
+  assert.match(desktopAnchor.getAttribute('title') ?? '', /复制链接/)
+  assert.doesNotMatch(desktopAnchor.getAttribute('title') ?? '', /中键|middle/)
+})
+
+test('the session menu receives a copy-link action on both platforms', () => {
+  // Given a page whose host exposes the product's menu service
+  const contributions = []
+  const menus = {
+    register(contribution) { contributions.push(contribution); return () => {} },
+    notify() {},
+  }
+  const { env } = openWithDom(['session:session-abc'], { inject: menus })
+  // Then exactly one session contribution was registered, named by this plugin
+  assert.equal(contributions.length, 1)
+  const [contribution] = contributions
+  assert.equal(contribution.target, 'session')
+  assert.equal(contribution.id, 'url-router.session')
+  assert.equal(contribution.order, 445)
+  // And the carried action copies the conversation's route
+  const actions = contribution.resolve({ sessionId: 'session-abc', displayTitle: 'abc' }, undefined)
+  assert.equal(actions.length, 1)
+  assert.equal(actions[0].id, 'copyLink')
+  assert.equal(actions[0].label, '复制链接')
+  assert.equal(actions[0].icon.key, 'workspace.copy')
+  assert.equal(typeof actions[0].run, 'function')
+})
+
+test('the copied link is a full URL in a browser and the bare fragment in the window', async () => {
+  // Given a browser page and a desktop window, each with a clipboard and a menu service
+  const webCopied = []
+  const desktopCopied = []
+  const webContributions = []
+  const desktopContributions = []
+  const web = openWithDom(['session:session-abc'], {
+    inject: { register: c => { webContributions.push(c); return () => {} }, notify: () => {} },
+    clipboard: { writeText(text) { webCopied.push(text); return Promise.resolve() } },
+  })
+  const desktop = openWithTitlebar(['session:session-abc'], {
+    menuWidth: 120,
+    inject: { register: c => { desktopContributions.push(c); return () => {} }, notify: () => {} },
+    clipboard: { writeText(text) { desktopCopied.push(text); return Promise.resolve() } },
+  })
+  const runCopy = async (contributions, copied) => {
+    const actions = contributions[0].resolve({ sessionId: 'session-abc', displayTitle: 'abc' }, undefined)
+    actions[0].run()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    assert.equal(copied.length, 1)
+    return copied[0]
+  }
+  // When each platform copies the conversation link from its row menu
+  const webText = await runCopy(webContributions, webCopied)
+  const desktopText = await runCopy(desktopContributions, desktopCopied)
+  // Then a browser copies what its own address field shows, launch query included ...
+  assert.equal(webText, web.env.location.pathname + web.env.location.search + '#/session/session-abc')
+  // ... while the window copies the fragment its title bar shows: dsh-app:// cannot travel.
+  assert.equal(desktopText, '#/session/session-abc')
 })
